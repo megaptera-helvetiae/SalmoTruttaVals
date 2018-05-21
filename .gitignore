@@ -13,4 +13,8 @@ trainsets/*
 *.fastq
 *.fq
 *.html
+*.png
+*.jpeg
+*.jpg
+*.tiff
 
