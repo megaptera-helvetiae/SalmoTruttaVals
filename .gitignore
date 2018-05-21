@@ -1,0 +1,16 @@
+data/*
+inputs/*
+literature/*
+misc/*
+outputs/*
+presentations/*
+trainsets/*
+
+
+!README.md
+*.docs
+*.pdf
+*.fastq
+*.fq
+*.html
+
