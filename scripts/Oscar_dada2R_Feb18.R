@@ -1,0 +1,345 @@
+# QIIME is dead
+####################################
+
+# Install dada2 through bioconductor
+
+source("http://bioconductor.org/biocLite.R")
+biocLite("dada2")
+
+# I ran all of this on Oskar!
+# I used the following commands:
+
+ssh megaptera@128.120.143.102
+scp -r /Users/megaptera/Desktop/shared_helper/dada/silva_nr_v128_train_set.fa megaptera@128.120.143.102:/Users/megaptera/dada2
+scp -r megaptera@128.120.143.102:/Users/megaptera/dada2/outputs /Users/megaptera/Desktop
+
+# To use R on Oskar:
+
+R # simply type R.
+
+# I followed this Stanford tutorial:
+http://web.stanford.edu/class/bios221/MicrobiomeWorkflowII.html
+
+
+# FILE PARSING:
+
+# I did two rounds of sequencing so I will do QC twice individually before merging the files. 
+# For the second round of sequencing there were more PCR amplification rounds.
+
+library(dada2); packageVersion("dada2")
+# File parsing
+pathF  <- "/Users/megaptera/dada2/dada_firstRound/fastq/pathF" # CHANGE ME to the directory containing the fastq files before unzipping.
+pathR <- "/Users/megaptera/dada2/dada_firstRound/fastq/pathR"
+filtpathF <- file.path(pathF, "filtered") # Filtered forward files go into the pathF/filtered/ subdirectory
+filtpathR <- file.path(pathR, "filtered") # ...
+fastqFs <- sort(list.files(pathF, pattern="fastq.gz"))
+fastqRs <- sort(list.files(pathR, pattern="fastq.gz"))
+if(length(fastqFs) != length(fastqRs)) stop("Forward and reverse files do not match.")
+# Filtering: THESE PARAMETERS ARENT OPTIMAL FOR ALL DATASETS; truncQ=2 for Guillaume.
+filterAndTrim(fwd=file.path(pathF, fastqFs), filt=file.path(filtpathF, fastqFs),
+              rev=file.path(pathR, fastqRs), filt.rev=file.path(filtpathR, fastqRs),
+              truncLen=c(280,200), maxEE=c(2,5), maxN=0,
+              compress=TRUE, verbose=TRUE, multithread=TRUE)
+
+
+# File parsing
+pathF  <- "/Users/megaptera/dada2/dada_secondRound/fastq/pathF" # CHANGE ME to the directory containing the fastq files before unzipping.
+pathR <- "/Users/megaptera/dada2/dada_secondRound/fastq/pathR"
+filtpathF <- file.path(pathF, "filtered") # Filtered forward files go into the pathF/filtered/ subdirectory
+filtpathR <- file.path(pathR, "filtered") # ...
+fastqFs <- sort(list.files(pathF, pattern="fastq.gz"))
+fastqRs <- sort(list.files(pathR, pattern="fastq.gz"))
+if(length(fastqFs) != length(fastqRs)) stop("Forward and reverse files do not match.")
+# Filtering: THESE PARAMETERS ARENT OPTIMAL FOR ALL DATASETS
+filterAndTrim(fwd=file.path(pathF, fastqFs), filt=file.path(filtpathF, fastqFs),
+              rev=file.path(pathR, fastqRs), filt.rev=file.path(filtpathR, fastqRs),
+              truncLen=c(280,200), maxEE=c(2,5), maxN=0,
+              compress=TRUE, verbose=TRUE, multithread=TRUE)
+
+
+
+# INFERRING SEQUENCING VARIANTS:
+
+# library(dada2); packageVersion("dada2")
+# File parsing
+filtpathF <- "/Users/megaptera/dada2/dada_firstRound/fastq/pathF/filtered"
+filtpathR <- "/Users/megaptera/dada2/dada_firstRound/fastq/pathR/filtered"
+filtFs <- list.files(filtpathF, pattern="fastq.gz", full.names = TRUE)
+filtRs <- list.files(filtpathR, pattern="fastq.gz", full.names = TRUE)
+sample.names <- sapply(strsplit(basename(filtFs), "_"), `[`, 1) # Assumes filename = samplename_XXX.fastq.gz
+sample.namesR <- sapply(strsplit(basename(filtRs), "_"), `[`, 1) # Assumes filename = samplename_XXX.fastq.gz
+if(!identical(sample.names, sample.namesR)) stop("Forward and reverse files do not match.")
+names(filtFs) <- sample.names
+names(filtRs) <- sample.names
+set.seed(2001)
+# Learn forward error rates
+errF <- learnErrors(filtFs, nread=1e6, multithread=TRUE)
+# Learn reverse error rates
+errR <- learnErrors(filtRs, nread=1e6, multithread=TRUE)
+# Sample inference and merger of paired-end reads
+# plotErrors(errF, nominalQ=TRUE)
+mergers <- vector("list", length(sample.names))
+names(mergers) <- sample.names
+for(sam in sample.names) {
+  cat("Processing:", sam, "\n")
+  derepF <- derepFastq(filtFs[[sam]])
+  ddF <- dada(derepF, err=errF, multithread=TRUE)
+  derepR <- derepFastq(filtRs[[sam]])
+  ddR <- dada(derepR, err=errR, multithread=TRUE)
+  merger <- mergePairs(ddF, derepF, ddR, derepR)
+  mergers[[sam]] <- merger
+}
+rm(derepF); rm(derepR)
+# Construct sequence table and remove chimeras
+seqtab <- makeSequenceTable(mergers)
+write.table(seqtab, file="test_seqtab_sequencing_firstRound_Feb18.txt")
+saveRDS(seqtab, "/Users/megaptera/dada2/outputs/seqtab_firstRound_Feb18.rds") # CHANGE ME to where you want sequence table saved
+
+
+filtpathF <- "/Users/megaptera/dada2/dada_secondRound/fastq/pathF/filtered"
+filtpathR <- "/Users/megaptera/dada2/dada_secondRound/fastq/pathR/filtered"
+filtFs <- list.files(filtpathF, pattern="fastq.gz", full.names = TRUE)
+filtRs <- list.files(filtpathR, pattern="fastq.gz", full.names = TRUE)
+sample.names <- sapply(strsplit(basename(filtFs), "_"), `[`, 1) # Assumes filename = samplename_XXX.fastq.gz
+sample.namesR <- sapply(strsplit(basename(filtRs), "_"), `[`, 1) # Assumes filename = samplename_XXX.fastq.gz
+if(!identical(sample.names, sample.namesR)) stop("Forward and reverse files do not match.")
+names(filtFs) <- sample.names
+names(filtRs) <- sample.names
+set.seed(1001)
+# Learn forward error rates
+errF <- learnErrors(filtFs, nread=1e6, multithread=TRUE)
+# Learn reverse error rates
+errR <- learnErrors(filtRs, nread=1e6, multithread=TRUE)
+# Sample inference and merger of paired-end reads
+# plotErrors(errF, nominalQ=TRUE)
+mergers <- vector("list", length(sample.names))
+names(mergers) <- sample.names
+for(sam in sample.names) {
+  cat("Processing:", sam, "\n")
+  derepF <- derepFastq(filtFs[[sam]])
+  ddF <- dada(derepF, err=errF, multithread=TRUE)
+  derepR <- derepFastq(filtRs[[sam]])
+  ddR <- dada(derepR, err=errR, multithread=TRUE)
+  merger <- mergePairs(ddF, derepF, ddR, derepR)
+  mergers[[sam]] <- merger
+}
+rm(derepF); rm(derepR)
+# Construct sequence table and remove chimeras
+seqtab2 <- makeSequenceTable(mergers)
+write.table(seqtab2, file="test_seqtab_sequencing_secondRound_Feb18.txt")
+saveRDS(seqtab2, "/Users/megaptera/dada2/outputs/seqtab_secondRound_Feb18.rds") # CHANGE ME to where you want sequence table saved
+
+
+
+# MERGING, REMOVING CHIMERAS AND ASSIGNING TAXONOMY CAN BE DONE TOGETHER AGAIN!
+
+# library(dada2); packageVersion("dada2")
+# Merge multiple runs (if necessary)
+st1 <- readRDS("/Users/megaptera/dada2/outputs/seqtab_secondRound_Feb18.rds")
+st2 <- readRDS("/Users/megaptera/dada2/outputs/seqtab_firstRound_Feb18.rds")
+st.all <- mergeSequenceTables(st1, st2)
+
+# Remove chimeras
+seqtab.chim <- removeBimeraDenovo(st.all, method="consensus", multithread=TRUE)
+
+# send newest silva training set to Oskar!
+scp /Users/megaptera/Desktop/silva_nr_v132_train_set.fa megaptera@128.120.143.102:/Users/megaptera/dada2
+
+# Assign taxonomy
+tax <- assignTaxonomy(seqtab.chim, "/Users/megaptera/dada2/silva_nr_v132_train_set.fa", multithread=TRUE)
+#taxa <- addSpecies(taxa, "Training/silva_species_assignment_v128.fa.gz")
+
+
+# Write to disk
+saveRDS(seqtab.chim, "/Users/megaptera/dada2/outputs/seqtab_final_chim_Feb18.rds") # CHANGE ME to where you want sequence table saved
+saveRDS(tax, "/Users/megaptera/dada2/outputs/tax_final_Feb18.rds") # CHANGE ME ...
+
+# NOW HAND IT OVER TO PHYLOSEQ!
+
+setwd("/Users/megaptera/Desktop/Finish_that_Trun_analysis/working_directory/")
+
+taxa <- readRDS("tax_final_Feb18.rds")
+seqtab.nochim <- readRDS("seqtab_final_chim_Feb18.rds")
+
+rownames(taxa)
+rownames(seqtab.nochim)
+
+write.table(taxa, file="taxa_table.txt")
+write.table(seqtab.nochim, file="seqtab_table.txt")
+
+source("https://bioconductor.org/biocLite.R")
+biocLite("phyloseq")
+
+library(phyloseq); packageVersion("phyloseq")
+library(ggplot2); packageVersion("ggplot2")
+
+# A list of R environment based tools for 16S rRNA gene data exploration, statistical analysis and visualization
+# https://microsud.github.io/Tools-Microbiome-Anlaysis/
+
+
+# If you want to do phylogenetic approaches you need a tree!
+# This is what you do to get a tree:
+
+# Phylogenetic relatedness is commonly used to inform downstream analyses, especially the calculation of phylogeny-aware distances between microbial communities. The DADA2 sequence inference method is reference-free, so we must construct the phylogenetic tree relating the inferred sequence variants de novo. We begin by performing a multiple-alignment using the DECIPHER R package (Wright 2015).
+
+# First we need to get the right libraries.
+library("knitr")
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("BiocStyle")
+library("BiocStyle")
+.cran_packages <- c("ggplot2", "gridExtra")
+.bioc_packages <- c("dada2", "phyloseq", "DECIPHER", "phangorn")
+.inst <- .cran_packages %in% installed.packages()
+if(any(!.inst)) {
+  install
+  
+  
+  .packages(.cran_packages[!.inst])
+}
+.inst <- .bioc_packages %in% installed.packages()
+if(any(!.inst)) {
+  source("http://bioconductor.org/biocLite.R")
+  biocLite(.bioc_packages[!.inst], ask = F)
+}
+# Load packages into session, and print package version
+sapply(c(.cran_packages, .bioc_packages), require, character.only = TRUE)
+
+
+seqs <- getSequences(seqtab.nochim)
+names(seqs) <- seqs # This propagates to the tip labels of the tree
+alignment <- AlignSeqs(DNAStringSet(seqs), anchor=NA,verbose=FALSE)
+
+
+
+# The phangorn R package is then used to construct a phylogenetic tree. Here we first construct a neighbor-joining tree, and then fit a GTR+G+I (Generalized time-reversible with Gamma rate variation) maximum likelihood tree using the neighbor-joining tree as a starting point.
+phangAlign <- phyDat(as(alignment, "matrix"), type="DNA")
+dm <- dist.ml(phangAlign)
+treeNJ <- NJ(dm) # Note, tip order != sequence order
+fit = pml(treeNJ, data=phangAlign)
+fitGTR <- update(fit, k=4, inv=0.2)
+fitGTR <- optim.pml(fitGTR, model="GTR", optInv=TRUE, optGamma=TRUE,
+                    rearrangement = "stochastic", control = pml.control(trace = 0))
+detach("package:phangorn", unload=TRUE)
+
+
+
+
+
+samdf <- read.delim("phyloseq_map.txt", header=T)
+samdf <- as.data.frame(samdf)
+row.names(samdf) <- samdf$Subject
+
+
+ps <- phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE), 
+               sample_data(samdf), 
+               tax_table(taxa))
+
+
+
+
+
+########
+# now I will explore a bit with the whole dataset:
+
+# Richness plots
+plot_richness(ps, x="concentration", measures=c("Shannon", "Simpson"), color="Tissue2") + theme_bw()
+
+# Distance plots
+ord.nmds.bray <- ordinate(ps, method="NMDS", distance="bray")
+plot_ordination(ps, ord.nmds.bray, color="Selection", title="Bray NMDS")
+
+# Barplot
+top20 <- names(sort(taxa_sums(ps), decreasing=TRUE))[1:20]
+ps.top20 <- transform_sample_counts(ps, function(OTU) OTU/sum(OTU))
+ps.top20 <- prune_taxa(top20, ps.top20)
+plot_bar(ps.top20, x="Population", fill="Family") + facet_wrap(~Tissue2, scales="free_x")
+
+# Heatmap
+gpt <- subset_taxa(ps, Kingdom=="Bacteria")
+gpt <- prune_taxa(names(sort(taxa_sums(gpt),TRUE)[1:300]), gpt)
+plot_heatmap(gpt, sample.label="Tissue")
+
+
+
+
+
+# Now only look at sperm:
+ps <- subset_samples(ps, SelectionMilt=="sperm")
+
+
+# Richness plots
+plot_richness(ps, x="Tissue", measures=c("Shannon", "Simpson"), color="Tissue") + theme_bw()
+
+# Distance plots
+ord.nmds.bray <- ordinate(ps, method="NMDS", distance="bray")
+plot_ordination(ps, ord.nmds.bray, color="Tissue", title="Bray NMDS")
+
+# Barplot
+top20 <- names(sort(taxa_sums(ps), decreasing=TRUE))[1:20]
+ps.top20 <- transform_sample_counts(ps, function(OTU) OTU/sum(OTU))
+ps.top20 <- prune_taxa(top20, ps.top20)
+plot_bar(ps.top20, x="FishID2", fill="Genus") + facet_wrap(~FishID2, scales="free_x")
+
+# Heatmap
+gpt <- subset_taxa(ps, Kingdom=="Bacteria")
+gpt <- prune_taxa(names(sort(taxa_sums(gpt),TRUE)[1:300]), gpt)
+plot_heatmap(gpt, sample.label="Tissue")
+
+
+
+
+
+# Now only look at Tavanasa:
+ps <- subset_samples(ps, SelectionTavanasa=="Tavanasa")
+
+
+# Richness plots
+plot_richness(ps, x="Tissue", measures=c("Shannon", "Simpson"), color="Tissue") + theme_bw()
+
+# Distance plots
+ord.nmds.bray <- ordinate(ps, method="NMDS", distance="bray")
+ord.nmds.bray.unifrac <- ordinate(ps, method="PCoA", distance="unifrac")
+
+plot_ordination(ps, ord.nmds.bray, color="Tissue", title="Bray NMDS")
+
+# Barplot
+top20 <- names(sort(taxa_sums(ps), decreasing=TRUE))[1:20]
+ps.top20 <- transform_sample_counts(ps, function(OTU) OTU/sum(OTU))
+ps.top20 <- prune_taxa(top20, ps.top20)
+plot_bar(ps.top20, x="Tissue", fill="Phylum") + facet_wrap(~Tissue, scales="free_x")
+
+# Heatmap
+gpt <- subset_taxa(ps, Kingdom=="Bacteria")
+gpt <- prune_taxa(names(sort(taxa_sums(gpt),TRUE)[1:300]), gpt)
+plot_heatmap(gpt, sample.label="Tissue")
+
+
+# And then only APS within Tavanasa
+ps <- subset_samples(ps, Tissue=="APS")
+ps
+
+# Richness plots
+plot_richness(ps, x="Treatment", measures=c("Shannon", "Simpson"), color="Treatment") + theme_bw()
+
+# Distance plots
+ord.nmds.bray <- ordinate(ps, method="NMDS", distance="bray")
+plot_ordination(ps, ord.nmds.bray, color="Treatment", title="Bray NMDS")
+
+# Barplot
+top20 <- names(sort(taxa_sums(ps), decreasing=TRUE))[1:20]
+ps.top20 <- transform_sample_counts(ps, function(OTU) OTU/sum(OTU))
+ps.top20 <- prune_taxa(top20, ps.top20)
+plot_bar(ps.top20, x="Treatment", fill="Phylum") + facet_wrap(~Treatment, scales="free_x")
+plot_bar(ps.top20, x="Treatment", fill="Family") + facet_wrap(~Treatment, scales="free_x")
+plot_bar(ps.top20, x="Treatment", fill="Genus") + facet_wrap(~Treatment, scales="free_x")
+
+
+
+# Heatmap
+gpt <- subset_taxa(ps, Kingdom=="Bacteria")
+gpt <- prune_taxa(names(sort(taxa_sums(gpt),TRUE)[1:300]), gpt)
+plot_heatmap(gpt, sample.label="Treatment")
+
+
+
+
