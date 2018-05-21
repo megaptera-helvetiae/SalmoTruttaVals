@@ -17,6 +17,7 @@ This is the amplicon data analysis of my early SNF project at a hatchery in Trun
 &nbsp;
 
 The script for this was named: "Trun_seq-prep.Rmd"
+--> All scripts here are RMarkdown script and can be found in the directory *RMarkdown*
 
 &nbsp;
 &nbsp;
