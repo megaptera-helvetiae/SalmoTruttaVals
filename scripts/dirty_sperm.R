@@ -1,0 +1,5 @@
+library(dada2)
+setwd("/Users/megaptera/dada2/outputs_March18")
+st4 <- readRDS("/Users/megaptera/dada2/outputs_March18/seqtab_sequencing_Round2_unclean.rds")
+dirty_sperm <- assignTaxonomy(st4, "/Users/megaptera/dada2/gg_13_8_train_set_97.fa", multithread=TRUE)
+saveRDS(dirty_sperm, "/Users/megaptera/dada2/outputs_March18/tax_dirty_sperm.rds")

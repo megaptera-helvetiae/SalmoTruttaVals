@@ -2,7 +2,8 @@ data/*
 inputs/*
 literature/*
 misc/*
-outputs/*
+outputs/outputs_June18/*
+outputs/outputs_March18/*
 presentations/*
 trainsets/*
 
@@ -17,4 +18,5 @@ trainsets/*
 *.jpeg
 *.jpg
 *.tiff
+*.gz
 

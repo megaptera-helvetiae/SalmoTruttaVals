@@ -1,0 +1,1027 @@
+---
+title: "Both sequencing runs combined - APS Vals"
+author: "Laetitia Wilkins"
+date: "4/30/2018"
+output: pdf_document
+---
+
+```{r setup, echo=FALSE}
+knitr::opts_knit$set(root.dir = "~/SalmoTruttaVals/outputs/outputs_June18/")
+```
+
+This is the whole dataset, cleaned and nice. QC was done separately for each run and then the two datasets were merged.
+
+&nbsp;
+
+I followed this tutorial:
+http://joey711.github.io/phyloseq-extensions/DESeq2.html
+
+```{r}
+# Open the libraries:
+library(phyloseq); packageVersion("phyloseq")
+library(ggplot2); packageVersion("ggplot2")
+
+# Read in the data:
+
+# SILVA
+
+# All data; clean
+taxa_allclean <- readRDS("tax_new_March18.rds")
+seqtab.nochim_allclean <- readRDS("seqtab_chim_clean_March18.rds")
+
+# write a table of all the taxa in my dataset to find an outgroup for the tree:
+write.table(taxa_f1clean, file="~/SalmoTruttaVals/outputs/outputs_20180528/taxa_allclean.txt")
+
+fitGTR_allclean <- readRDS("fitGTR_tree1_Feb18.rds")
+
+samdf_allclean <- read.delim("~/SalmoTruttaVals/maps/phyloseq_map.txt", header=T)
+samdf_allclean <- as.data.frame(samdf_allclean)
+row.names(samdf_allclean) <- samdf_allclean$Subject
+
+ps.w.tree_allclean <- phyloseq(otu_table(seqtab.nochim_allclean, taxa_are_rows=FALSE), 
+                               sample_data(samdf_allclean), 
+                               tax_table(taxa_allclean), phy_tree(fitGTR_allclean$tree))
+
+require("ape")
+phyloseq.tree_allclean <- root(fitGTR_allclean$tree, outgroup = "TGACAAGCTGTGAAATTGGTATTAATCATGTCTACACACAAATCACAACAACACTCTAAAGTCAACAAGTCATTATGTTCATGTATTGAGTGGAAATCTAGAAAATAACCGTTTGTCAGAGAAATGAGCTTGAACCAGACAGAGACGGGGAGACAGCGCTCCGTTGGGGAGGCAGCGCTCCGTAGGGGAGGCAGCGGCAGCGCTCCGTTGGGGAGGCAGCGCTCCGTTGGGGAGGCAGCGCTCCGTTGGGGAGGCAGCGCTCCGTTGGGGAGGCAGCG", resolve.root = TRUE)
+# This is Thaumarchaeota!
+
+ps.w.tree.root_allclean <- phyloseq(otu_table(seqtab.nochim_allclean, taxa_are_rows=FALSE), 
+                                    sample_data(samdf_allclean), 
+                                    tax_table(taxa_allclean), phy_tree(phyloseq.tree_allclean))
+
+# To test if that worked:
+
+# Distance plots
+
+ord.PCoA.UniFrac_allclean <- ordinate(ps.w.tree.root_allclean, method="PCoA", distance="unifrac")
+plot_ordination(ps.w.tree.root_allclean, ord.PCoA.UniFrac_allclean, color="Tissue", title="UniFrac PCoA - Tissues; complete dataset")
+
+w.uni <- distance(ps.w.tree.root_allclean, "unifrac")
+weighted.uni <- distance(ps.w.tree.root_allclean, "wunifrac")
+
+ord.PCoA.UniFrac.allclean.weighted <- ordinate(ps.w.tree.root_allclean, method="PCoA", distance=weighted.uni)
+plot_ordination(ps.w.tree.root_allclean, ord.PCoA.UniFrac.allclean.weighted, color="Tissue", title="weighted UniFrac PCoA - Tissues; complete dataset")
+
+
+
+# Now I am looking into the Vals population:
+ps.clean.APS.Vals <- subset_samples(ps.w.tree.root_allclean, APSVals=="yes")
+kostic.Vals <- subset_samples(ps.clean.APS.Vals, Treatment != "APSunfert")
+kostic.Vals
+
+# Richness plots
+plot_richness(kostic.Vals, x="Treatment", measures=c("Shannon", "Simpson", "Observed", "Fisher"), color="FishID2") + theme_bw()
+
+# Distance plots
+ord.nmds.bray.Vals <- ordinate(kostic.Vals, method="NMDS", distance="bray")
+plot_ordination(kostic.Vals, ord.nmds.bray.Vals, color="Treatment", title="Bray NMDS - Treatment; everything in Vals")
+
+ord.nmds.bray.Vals <- ordinate(kostic.Vals, method="NMDS", distance="bray")
+plot_ordination(kostic.Vals, ord.nmds.bray.Vals, color="Sequencing", title="Bray NMDS - Sequencing; everything in Vals")
+
+ord.PCoA.UniFrac.Vals <- ordinate(kostic.Vals, method="PCoA", distance="unifrac")
+plot_ordination(kostic.Vals, ord.PCoA.UniFrac.Vals, color="Treatment", title="UniFrac PCoA - Treatment; everything in Vals")
+
+ord.PCoA.UniFrac.Vals <- ordinate(kostic.Vals, method="PCoA", distance="unifrac")
+plot_ordination(kostic.Vals, ord.PCoA.UniFrac.Vals, color="Sequencing", title="UniFrac PCoA - Sequencing; everything in Vals")
+
+w.uni.kostic.Vals <- distance(kostic.Vals, "unifrac")
+weighted.uni.kostic.Vals <- distance(kostic.Vals, "wunifrac")
+
+ord.PCoA.UniFrac.kostic.Vals.weighted <- ordinate(kostic.Vals, method="PCoA", weighted.uni.kostic.Vals)
+plot_ordination(kostic.Vals, ord.PCoA.UniFrac.kostic.Vals.weighted, color="Treatment", title="weighted UniFrac PCoA - Treatment; everything in Vals")
+plot_ordination(kostic.Vals, ord.PCoA.UniFrac.kostic.Vals.weighted, color="Sequencing", title="weighted UniFrac PCoA - Sequencing Run; everything in Vals")
+
+
+
+# Now let's do some Deseq2
+library(DESeq2); packageVersion("DESeq2")
+
+diagdds = phyloseq_to_deseq2(kostic.Vals, ~ SequencingTwoState + Treatment)
+
+gm_mean = function(x, na.rm=TRUE){
+  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+
+geoMeans = apply(counts(diagdds), 1, gm_mean)
+diagdds = estimateSizeFactors(diagdds, geoMeans = geoMeans)
+diagdds = DESeq(diagdds, fitType="local")
+
+res = results(diagdds)
+res = res[order(res$padj, na.last=NA), ]
+alpha = 0.05
+sigtab = res[(res$padj < alpha), ]
+sigtab = cbind(as(sigtab, "data.frame"), as(tax_table(kostic.Vals)[rownames(sigtab), ], "matrix"))
+#head(sigtab)
+
+posigtab = sigtab[sigtab[, "log2FoldChange"] > 0, ]
+posigtab = posigtab[, c("baseMean", "log2FoldChange", "lfcSE", "padj", "Phylum", "Class", "Family", "Genus")]
+
+library("ggplot2")
+theme_set(theme_bw())
+sigtabgen = subset(sigtab, !is.na(Genus))
+# Phylum order
+x = tapply(sigtabgen$log2FoldChange, sigtabgen$Phylum, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen$Phylum = factor(as.character(sigtabgen$Phylum), levels=names(x))
+# Genus order
+x = tapply(sigtabgen$log2FoldChange, sigtabgen$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen$Genus = factor(as.character(sigtabgen$Genus), levels=names(x))
+ggpl.a <- ggplot(sigtabgen, aes(y=Genus, x=log2FoldChange, color=Phylum)) + 
+  geom_vline(xintercept = 0.0, color = "gray", size = 0.5) +
+  geom_point(size=6) + 
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+ggpl.a + ggtitle("Differences between treatments; sequencing run accounted for")
+
+
+write.table(posigtab, file="/SalmoTruttaVals/outputs/outputs_20180528/posigtab_Vals_wholedataset_withSequencing_accounted_for.txt")
+
+
+# Is there a difference if I do not account for sequencing run???
+
+diagdds = phyloseq_to_deseq2(kostic.Vals, ~ Treatment)
+
+gm_mean = function(x, na.rm=TRUE){
+  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+
+geoMeans = apply(counts(diagdds), 1, gm_mean)
+diagdds = estimateSizeFactors(diagdds, geoMeans = geoMeans)
+diagdds = DESeq(diagdds, fitType="local")
+
+res = results(diagdds)
+res = res[order(res$padj, na.last=NA), ]
+alpha = 0.05
+sigtab = res[(res$padj < alpha), ]
+sigtab = cbind(as(sigtab, "data.frame"), as(tax_table(kostic.Vals)[rownames(sigtab), ], "matrix"))
+#head(sigtab)
+
+posigtab = sigtab[sigtab[, "log2FoldChange"] > 0, ]
+posigtab = posigtab[, c("baseMean", "log2FoldChange", "lfcSE", "padj", "Phylum", "Class", "Family", "Genus")]
+
+library("ggplot2")
+theme_set(theme_bw())
+sigtabgen = subset(sigtab, !is.na(Genus))
+# Phylum order
+x = tapply(sigtabgen$log2FoldChange, sigtabgen$Phylum, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen$Phylum = factor(as.character(sigtabgen$Phylum), levels=names(x))
+# Genus order
+x = tapply(sigtabgen$log2FoldChange, sigtabgen$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen$Genus = factor(as.character(sigtabgen$Genus), levels=names(x))
+ggpl.b <- ggplot(sigtabgen, aes(y=Genus, x=log2FoldChange, color=Phylum)) + 
+  geom_vline(xintercept = 0.0, color = "gray", size = 0.5) +
+  geom_point(size=6) + 
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+ggpl.b + ggtitle("Differences between treatments; sequencing run ignored")
+
+write.table(posigtab, file="/SalmoTruttaVals/outputs/outputs_20180528/posigtab_Vals_wholedataset_Sequencing_ignored.txt")
+
+
+
+
+##########################################
+# Now let's look into individual families:
+
+
+T33 <- subset_samples(kostic.Vals, FishID2=="T33")
+T33
+
+ord.nmds.bray.T33 <- ordinate(T33, method="NMDS", distance="bray")
+plot_ordination(T33, ord.nmds.bray.T33, color="Treatment", title="Bray NMDS - Treatment father T33")
+
+
+# Now let's do some Deseq2
+library(DESeq2); packageVersion("DESeq2")
+
+diagdds.T33 = phyloseq_to_deseq2(T33, ~ SequencingTwoState + Treatment)
+
+gm_mean = function(x, na.rm=TRUE){
+  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+
+geoMeans.T33 = apply(counts(diagdds.T33), 1, gm_mean)
+diagdds.T33 = estimateSizeFactors(diagdds.T33, geoMeans = geoMeans.T33)
+diagdds.T33 = DESeq(diagdds.T33, fitType="local")
+
+res.T33 = results(diagdds.T33)
+res.T33 = res.T33[order(res.T33$padj, na.last=NA), ]
+alpha = 0.01
+sigtab.T33 = res.T33[(res.T33$padj < alpha), ]
+sigtab.T33 = cbind(as(sigtab.T33, "data.frame"), as(tax_table(T33)[rownames(sigtab.T33), ], "matrix"))
+#head(sigtab)
+
+posigtab.T33 = sigtab.T33[sigtab.T33[, "log2FoldChange"] > 0, ]
+posigtab.T33 = posigtab.T33[, c("baseMean", "log2FoldChange", "lfcSE", "padj", "Phylum", "Class", "Family", "Genus")]
+
+library("ggplot2")
+theme_set(theme_bw())
+sigtabgen.T33 = subset(sigtab.T33, !is.na(Genus))
+# Phylum order
+x = tapply(sigtabgen.T33$log2FoldChange, sigtabgen.T33$Phylum, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen.T33$Phylum = factor(as.character(sigtabgen.T33$Phylum), levels=names(x))
+# Genus order
+x = tapply(sigtabgen.T33$log2FoldChange, sigtabgen.T33$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen.T33$Genus = factor(as.character(sigtabgen.T33$Genus), levels=names(x))
+ggp.T33 <- ggplot(sigtabgen.T33, aes(y=Genus, x=log2FoldChange, color=Phylum)) + 
+  geom_vline(xintercept = 0.0, color = "gray", size = 0.5) +
+  geom_point(size=6) + 
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+ggp.T33 + ggtitle("T33 fold changes between treatments (Seq)")
+
+write.table(posigtab.T33, file="posigtab.T33_Vals_withSequencing_accounted_for.txt")
+
+
+# Is there a difference if I do not account for sequencing run???
+
+diagdds.T33b = phyloseq_to_deseq2(T33, ~ Treatment)
+
+gm_mean = function(x, na.rm=TRUE){
+  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+
+geoMeans.T33b = apply(counts(diagdds.T33b), 1, gm_mean)
+diagdds.T33b = estimateSizeFactors(diagdds.T33b, geoMeans = geoMeans.T33b)
+diagdds.T33b = DESeq(diagdds.T33b, fitType="local")
+
+res.T33b = results(diagdds.T33b)
+res.T33b = res.T33b[order(res.T33b$padj, na.last=NA), ]
+alpha = 0.01
+sigtab.T33b = res.T33b[(res.T33b$padj < alpha), ]
+sigtab.T33b = cbind(as(sigtab.T33b, "data.frame"), as(tax_table(T33)[rownames(sigtab.T33b), ], "matrix"))
+#head(sigtab)
+
+posigtab.T33b = sigtab.T33b[sigtab.T33b[, "log2FoldChange"] > 0, ]
+posigtab.T33b = posigtab.T33b[, c("baseMean", "log2FoldChange", "lfcSE", "padj", "Phylum", "Class", "Family", "Genus")]
+
+theme_set(theme_bw())
+sigtabgen.T33b = subset(sigtab.T33b, !is.na(Genus))
+# Phylum order
+x = tapply(sigtabgen.T33b$log2FoldChange, sigtabgen.T33b$Phylum, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen.T33b$Phylum = factor(as.character(sigtabgen.T33b$Phylum), levels=names(x))
+# Genus order
+x = tapply(sigtabgen.T33b$log2FoldChange, sigtabgen.T33b$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen.T33b$Genus = factor(as.character(sigtabgen.T33b$Genus), levels=names(x))
+ggp.T33b <- ggplot(sigtabgen.T33b, aes(y=Genus, x=log2FoldChange, color=Phylum)) + 
+  geom_vline(xintercept = 0.0, color = "gray", size = 0.5) +
+  geom_point(size=6) + 
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+ggp.T33b + ggtitle("T33 fold changes between treatments (Seq ignored)")
+
+write.table(posigtab.T33b, file="posigtab.T33b_Vals_Sequencing_ignored.txt")
+
+
+
+
+############################
+# Now I also want to plot these bacteria in the milt samples!
+
+# clean up input file:
+ps.milt.all <- subset_samples(ps.w.tree.root_allclean, SelectionBodyparts=="sperm")
+ps.milt.all
+ps.milt <- subset_samples(ps.milt.all, Population=="Vals")
+ps.milt
+
+milt.gpt1 <- subset_taxa(ps.milt, Genus=="Rugamonas")
+plot_bar(milt.gpt1, fill="Genus", x="FishID2", title="Rugamonas in the sperm of all males (T33!)")
+milt.gpt2 <- subset_taxa(ps.milt, Genus=="Sphingomonas")
+plot_bar(milt.gpt2, fill="Genus", x="FishID2", title="Sphingomonas in the sperm of all males (T33!)")
+milt.gpt3 <- subset_taxa(ps.milt, Genus=="Duganella")
+plot_bar(milt.gpt3, fill="Genus", x="FishID2", title="Duganella in the sperm of all males (T33!)")
+milt.gpt4 <- subset_taxa(ps.milt, Genus=="Brevundimonas")
+plot_bar(milt.gpt4, fill="Genus", x="FishID2", title="Brevundimonas in the sperm of all males (T33!)")
+milt.gpt5 <- subset_taxa(ps.milt, Genus=="Methylobacterium")
+plot_bar(milt.gpt5, fill="Genus", x="FishID2", title="Methylobacterium in the sperm of all males (T33!)")
+milt.gpt6 <- subset_taxa(ps.milt, Genus=="Bosea")
+plot_bar(milt.gpt6, fill="Genus", x="FishID2", title="Bosea in the sperm of all males (T33!)")
+milt.gpt7 <- subset_taxa(ps.milt, Genus=="Arcicella")
+plot_bar(milt.gpt7, fill="Genus", x="FishID2", title="Arcicella in the sperm of all males (T33!)")
+milt.gpt8 <- subset_taxa(ps.milt, Genus=="Curvibacter")
+plot_bar(milt.gpt8, fill="Genus", x="FishID2", title="Curvibacter in the sperm of all males (T33!)")
+
+
+# And some others that only show up in some of the males or in Run1:
+
+milt.gpt9 <- subset_taxa(ps.milt, Genus=="Paracoccus")
+plot_bar(milt.gpt9, fill="Genus", x="FishID2", title="Paracoccus in the sperm of all males")
+milt.gpt10 <- subset_taxa(ps.milt, Genus=="Williamsia")
+plot_bar(milt.gpt10, fill="Genus", x="FishID2", title="Williamsia in the sperm of all males")
+milt.gpt11 <- subset_taxa(ps.milt, Genus=="Corynebacterium")
+plot_bar(milt.gpt11, fill="Genus", x="FishID2", title="Corynebacterium in the sperm of all males")
+milt.gpt12 <- subset_taxa(ps.milt, Genus=="Gemella")
+plot_bar(milt.gpt12, fill="Genus", x="FishID2", title="Gemella in the sperm of all males")
+milt.gpt13 <- subset_taxa(ps.milt, Genus=="Sporosarcina")
+plot_bar(milt.gpt13, fill="Genus", x="FishID2", title="Sporosarcina in the sperm of all males")
+milt.gpt14 <- subset_taxa(ps.milt, Genus=="Hirschia")
+plot_bar(milt.gpt14, fill="Genus", x="FishID2", title="Hirschia in the sperm of all males")
+milt.gpt15 <- subset_taxa(ps.milt, Genus=="Phenylobacterium")
+plot_bar(milt.gpt15, fill="Genus", x="FishID2", title="Phenylobacterium in the sperm of all males")
+milt.gpt16 <- subset_taxa(ps.milt, Genus=="Streptococcus")
+plot_bar(milt.gpt16, fill="Genus", x="FishID2", title="Streptococcus in the sperm of all males")
+milt.gpt17 <- subset_taxa(ps.milt, Genus=="Friedmanniella")
+plot_bar(milt.gpt17, fill="Genus", x="FishID2", title="Friedmanniella in the sperm of all males")
+milt.gpt18 <- subset_taxa(ps.milt, Genus=="Neisseria")
+plot_bar(milt.gpt18, fill="Genus", x="FishID2", title="Neisseria in the sperm of all males")
+milt.gpt19 <- subset_taxa(ps.milt, Genus=="Aeribacillus")
+plot_bar(milt.gpt19, fill="Genus", x="FishID2", title="Aeribacillus in the sperm of all males")
+milt.gpt20 <- subset_taxa(ps.milt, Genus=="Staphylococcus")
+plot_bar(milt.gpt20, fill="Genus", x="FishID2", title="Staphylococcus in the sperm of all males")
+milt.gpt21 <- subset_taxa(ps.milt, Genus=="Rhizorhapis")
+plot_bar(milt.gpt21, fill="Genus", x="FishID2", title="Rhizorhapis in the sperm of all males")
+
+# What about the father's skin?
+
+ps.skin.all <- subset_samples(ps.w.tree.root_allclean, Tissue=="skin")
+ps.skin.all
+ps.skin <- subset_samples(ps.skin.all, Population=="Vals")
+ps.skin
+
+skin.gpt1 <- subset_taxa(ps.skin, Genus=="Rugamonas")
+plot_bar(skin.gpt1, fill="Genus", x="FishID2", title="Rugamonas on the skin of all males (T33!)")
+
+plot_bar(skin.gpt1, fill="Genus", x="Treatment", title="Rugamonas on the skin of all males (T33!)")
+
+skin.gpt2 <- subset_taxa(ps.skin, Genus=="Sphingomonas")
+plot_bar(skin.gpt2, fill="Genus", x="FishID2", title="Sphingomonas on the skin of all males (T33!)")
+skin.gpt3 <- subset_taxa(ps.skin, Genus=="Duganella")
+plot_bar(skin.gpt3, fill="Genus", x="FishID2", title="Duganella on the skin of all males (T33!)")
+skin.gpt4 <- subset_taxa(ps.skin, Genus=="Brevundimonas")
+plot_bar(skin.gpt4, fill="Genus", x="FishID2", title="Brevundimonas on the skin of all males (T33!)")
+skin.gpt5 <- subset_taxa(ps.skin, Genus=="Methylobacterium")
+plot_bar(skin.gpt5, fill="Genus", x="FishID2", title="Methylobacterium on the skin of all males (T33!)")
+skin.gpt6 <- subset_taxa(ps.skin, Genus=="Bosea")
+plot_bar(skin.gpt6, fill="Genus", x="FishID2", title="Bosea on the skin of all males (T33!)")
+skin.gpt7 <- subset_taxa(ps.skin, Genus=="Arcicella")
+plot_bar(skin.gpt7, fill="Genus", x="FishID2", title="Arcicella on the skin of all males (T33!)")
+skin.gpt8 <- subset_taxa(ps.skin, Genus=="Curvibacter")
+plot_bar(skin.gpt8, fill="Genus", x="FishID2", title="Curvibacter on the skin of all males (T33!)")
+
+# And some others that only show up in some of the males or in Run1:
+
+milt.gpt9 <- subset_taxa(ps.skin, Genus=="Paracoccus")
+plot_bar(milt.gpt9, fill="Genus", x="FishID2", title="Paracoccus on the skin")
+milt.gpt10 <- subset_taxa(ps.skin, Genus=="Williamsia")
+plot_bar(milt.gpt10, fill="Genus", x="FishID2", title="Williamsia on the skin")
+milt.gpt11 <- subset_taxa(ps.skin, Genus=="Corynebacterium")
+plot_bar(milt.gpt11, fill="Genus", x="FishID2", title="Corynebacterium on the skin")
+milt.gpt12 <- subset_taxa(ps.skin, Genus=="Gemella")
+plot_bar(milt.gpt12, fill="Genus", x="FishID2", title="Gemella on the skin")
+milt.gpt13 <- subset_taxa(ps.skin, Genus=="Sporosarcina")
+plot_bar(milt.gpt13, fill="Genus", x="FishID2", title="Sporosarcina on the skin")
+milt.gpt14 <- subset_taxa(ps.skin, Genus=="Hirschia")
+plot_bar(milt.gpt14, fill="Genus", x="FishID2", title="Hirschia on the skin")
+milt.gpt15 <- subset_taxa(ps.skin, Genus=="Phenylobacterium")
+plot_bar(milt.gpt15, fill="Genus", x="FishID2", title="Phenylobacterium on the skin")
+milt.gpt16 <- subset_taxa(ps.skin, Genus=="Streptococcus")
+plot_bar(milt.gpt16, fill="Genus", x="FishID2", title="Streptococcus on the skin")
+milt.gpt17 <- subset_taxa(ps.skin, Genus=="Friedmanniella")
+plot_bar(milt.gpt17, fill="Genus", x="FishID2", title="Friedmanniella on the skin")
+milt.gpt18 <- subset_taxa(ps.skin, Genus=="Neisseria")
+plot_bar(milt.gpt18, fill="Genus", x="FishID2", title="Neisseria on the skin")
+milt.gpt19 <- subset_taxa(ps.skin, Genus=="Aeribacillus")
+plot_bar(milt.gpt19, fill="Genus", x="FishID2", title="Aeribacillus on the skin")
+milt.gpt20 <- subset_taxa(ps.skin, Genus=="Staphylococcus")
+plot_bar(milt.gpt20, fill="Genus", x="FishID2", title="Staphylococcus on the skin")
+milt.gpt21 <- subset_taxa(ps.skin, Genus=="Rhizorhapis")
+plot_bar(milt.gpt21, fill="Genus", x="FishID2", title="Rhizorhapis on the skin")
+
+# or did it come from Mom????
+
+ps.unfert <- subset_samples(ps.w.tree.root_allclean, Treatment=="APSunfert")
+ps.unfert
+
+unfert.gpt1 <- subset_taxa(ps.unfert, Genus=="Rugamonas")
+plot_bar(unfert.gpt1, fill="Genus", x="FishID2", title="Rugamonas in unfertilized eggs (T33!)")
+unfert.gpt2 <- subset_taxa(ps.unfert, Genus=="Sphingomonas")
+plot_bar(unfert.gpt2, fill="Genus", x="FishID2", title="Sphingomonas in unfertilized eggs (T33!)")
+unfert.gpt3 <- subset_taxa(ps.unfert, Genus=="Duganella")
+plot_bar(unfert.gpt3, fill="Genus", x="FishID2", title="Duganella in unfertilized eggs (T33!)")
+unfert.gpt4 <- subset_taxa(ps.unfert, Genus=="Brevundimonas")
+plot_bar(unfert.gpt4, fill="Genus", x="FishID2", title="Brevundimonas in unfertilized eggs (T33!)")
+unfert.gpt5 <- subset_taxa(ps.unfert, Genus=="Methylobacterium")
+plot_bar(unfert.gpt5, fill="Genus", x="FishID2", title="Methylobacterium in unfertilized eggs (T33!)")
+unfert.gpt6 <- subset_taxa(ps.unfert, Genus=="Bosea")
+plot_bar(unfert.gpt6, fill="Genus", x="FishID2", title="Bosea in unfertilized eggs (T33!)")
+unfert.gpt7 <- subset_taxa(ps.unfert, Genus=="Arcicella")
+plot_bar(unfert.gpt7, fill="Genus", x="FishID2", title="Arcicella in unfertilized eggs (T33!)")
+unfert.gpt8 <- subset_taxa(ps.unfert, Genus=="Curvibacter")
+plot_bar(unfert.gpt8, fill="Genus", x="FishID2", title="Curvibacter in unfertilized eggs (T33!)")
+
+# And some others that only show up in some of the males or in Run1:
+
+milt.gpt9 <- subset_taxa(ps.unfert, Genus=="Paracoccus")
+plot_bar(milt.gpt9, fill="Genus", x="FishID2", title="Paracoccus in unfertilized eggs")
+milt.gpt10 <- subset_taxa(ps.unfert, Genus=="Williamsia")
+plot_bar(milt.gpt10, fill="Genus", x="FishID2", title="Williamsia in unfertilized eggs")
+milt.gpt11 <- subset_taxa(ps.unfert, Genus=="Corynebacterium")
+plot_bar(milt.gpt11, fill="Genus", x="FishID2", title="Corynebacterium in unfertilized eggs")
+milt.gpt12 <- subset_taxa(ps.unfert, Genus=="Gemella")
+plot_bar(milt.gpt12, fill="Genus", x="FishID2", title="Gemella in unfertilized eggs")
+milt.gpt13 <- subset_taxa(ps.unfert, Genus=="Sporosarcina")
+plot_bar(milt.gpt13, fill="Genus", x="FishID2", title="Sporosarcina in unfertilized eggs")
+milt.gpt14 <- subset_taxa(ps.unfert, Genus=="Hirschia")
+plot_bar(milt.gpt14, fill="Genus", x="FishID2", title="Hirschia in unfertilized eggs")
+milt.gpt15 <- subset_taxa(ps.unfert, Genus=="Phenylobacterium")
+plot_bar(milt.gpt15, fill="Genus", x="FishID2", title="Phenylobacterium in unfertilized eggs")
+milt.gpt16 <- subset_taxa(ps.unfert, Genus=="Streptococcus")
+plot_bar(milt.gpt16, fill="Genus", x="FishID2", title="Streptococcus in unfertilized eggs")
+milt.gpt17 <- subset_taxa(ps.unfert, Genus=="Friedmanniella")
+plot_bar(milt.gpt17, fill="Genus", x="FishID2", title="Friedmanniella in unfertilized eggs")
+milt.gpt18 <- subset_taxa(ps.unfert, Genus=="Neisseria")
+plot_bar(milt.gpt18, fill="Genus", x="FishID2", title="Neisseria in unfertilized eggs")
+milt.gpt19 <- subset_taxa(ps.unfert, Genus=="Aeribacillus")
+plot_bar(milt.gpt19, fill="Genus", x="FishID2", title="Aeribacillus in unfertilized eggs")
+milt.gpt20 <- subset_taxa(ps.unfert, Genus=="Staphylococcus")
+plot_bar(milt.gpt20, fill="Genus", x="FishID2", title="Staphylococcus in unfertilized eggs")
+milt.gpt21 <- subset_taxa(ps.unfert, Genus=="Rhizorhapis")
+plot_bar(milt.gpt21, fill="Genus", x="FishID2", title="Rhizorhapis in unfertilized eggs")
+
+
+
+# And finally, let's look into the well water!
+
+ps.well.all <- subset_samples(ps.w.tree.root_allclean, Treatment=="wellWater")
+ps.well.all
+ps.well <- subset_samples(ps.well.all, Population=="Vals")
+ps.well
+#ps.well <- subset_samples(ps.well, SampleID != "LW132")
+
+
+
+well.gpt1 <- subset_taxa(ps.well, Genus=="Rugamonas")
+plot_bar(well.gpt1, fill="Genus", x="Number", title="Rugamonas in the wells (T33!)")
+well.gpt2 <- subset_taxa(ps.well, Genus=="Sphingomonas")
+plot_bar(well.gpt2, fill="Genus", x="Number", title="Sphingomonas in the wells (T33!)")
+well.gpt3 <- subset_taxa(ps.well, Genus=="Duganella")
+plot_bar(well.gpt3, fill="Genus", x="Number", title="Duganella in the wells (T33!)")
+well.gpt4 <- subset_taxa(ps.well, Genus=="Brevundimonas")
+plot_bar(well.gpt4, fill="Genus", x="Number", title="Brevundimonas in the wells (T33!)")
+well.gpt5 <- subset_taxa(ps.well, Genus=="Methylobacterium")
+plot_bar(well.gpt5, fill="Genus", x="Number", title="Methylobacterium in the wells (T33!)")
+well.gpt6 <- subset_taxa(ps.well, Genus=="Bosea")
+plot_bar(well.gpt6, fill="Genus", x="Number", title="Bosea in the wells (T33!)")
+well.gpt7 <- subset_taxa(ps.well, Genus=="Arcicella")
+plot_bar(well.gpt7, fill="Genus", x="Number", title="Arcicella in the wells (T33!)")
+well.gpt8 <- subset_taxa(ps.well, Genus=="Curvibacter")
+plot_bar(well.gpt8, fill="Genus", x="Number", title="Curvibacter in the wells (T33!)")
+
+# And some others that only show up in some of the males or in Run1:
+
+milt.gpt9 <- subset_taxa(ps.well, Genus=="Paracoccus")
+plot_bar(milt.gpt9, fill="Genus", x="FishID2", title="Paracoccus in the water wells")
+milt.gpt10 <- subset_taxa(ps.well, Genus=="Williamsia")
+plot_bar(milt.gpt10, fill="Genus", x="FishID2", title="Williamsia in the water wells")
+milt.gpt11 <- subset_taxa(ps.well, Genus=="Corynebacterium")
+plot_bar(milt.gpt11, fill="Genus", x="FishID2", title="Corynebacterium in the water wells")
+milt.gpt12 <- subset_taxa(ps.well, Genus=="Gemella")
+plot_bar(milt.gpt12, fill="Genus", x="FishID2", title="Gemella in the water wells")
+milt.gpt13 <- subset_taxa(ps.well, Genus=="Sporosarcina")
+plot_bar(milt.gpt13, fill="Genus", x="FishID2", title="Sporosarcina in the water wells")
+milt.gpt14 <- subset_taxa(ps.well, Genus=="Hirschia")
+plot_bar(milt.gpt14, fill="Genus", x="FishID2", title="Hirschia in the water wells")
+milt.gpt15 <- subset_taxa(ps.well, Genus=="Phenylobacterium")
+plot_bar(milt.gpt15, fill="Genus", x="FishID2", title="Phenylobacterium in the water wells")
+milt.gpt16 <- subset_taxa(ps.well, Genus=="Streptococcus")
+plot_bar(milt.gpt16, fill="Genus", x="FishID2", title="Streptococcus in the water wells")
+milt.gpt17 <- subset_taxa(ps.well, Genus=="Friedmanniella")
+plot_bar(milt.gpt17, fill="Genus", x="FishID2", title="Friedmanniella in the water wells")
+milt.gpt18 <- subset_taxa(ps.well, Genus=="Neisseria")
+plot_bar(milt.gpt18, fill="Genus", x="FishID2", title="Neisseria in the water wells")
+milt.gpt19 <- subset_taxa(ps.well, Genus=="Aeribacillus")
+plot_bar(milt.gpt19, fill="Genus", x="FishID2", title="Aeribacillus in the water wells")
+milt.gpt20 <- subset_taxa(ps.well, Genus=="Staphylococcus")
+plot_bar(milt.gpt20, fill="Genus", x="FishID2", title="Staphylococcus in the water wells")
+milt.gpt21 <- subset_taxa(ps.well, Genus=="Rhizorhapis")
+plot_bar(milt.gpt21, fill="Genus", x="FishID2", title="Rhizorhapis in the water wells")
+
+
+# And here are the plots without the contaminated sample:
+ps.well <- subset_samples(ps.well, SampleID != "LW132")
+
+well.gpt1 <- subset_taxa(ps.well, Genus=="Rugamonas")
+plot_bar(well.gpt1, fill="Genus", x="Number", title="Rugamonas in the wells (T33!)")
+well.gpt2 <- subset_taxa(ps.well, Genus=="Sphingomonas")
+plot_bar(well.gpt2, fill="Genus", x="Number", title="Sphingomonas in the wells (T33!)")
+well.gpt3 <- subset_taxa(ps.well, Genus=="Duganella")
+plot_bar(well.gpt3, fill="Genus", x="Number", title="Duganella in the wells (T33!)")
+well.gpt4 <- subset_taxa(ps.well, Genus=="Brevundimonas")
+plot_bar(well.gpt4, fill="Genus", x="Number", title="Brevundimonas in the wells (T33!)")
+well.gpt5 <- subset_taxa(ps.well, Genus=="Methylobacterium")
+plot_bar(well.gpt5, fill="Genus", x="Number", title="Methylobacterium in the wells (T33!)")
+well.gpt6 <- subset_taxa(ps.well, Genus=="Bosea")
+plot_bar(well.gpt6, fill="Genus", x="Number", title="Bosea in the wells (T33!)")
+well.gpt7 <- subset_taxa(ps.well, Genus=="Arcicella")
+plot_bar(well.gpt7, fill="Genus", x="Number", title="Arcicella in the wells (T33!)")
+well.gpt8 <- subset_taxa(ps.well, Genus=="Curvibacter")
+plot_bar(well.gpt8, fill="Genus", x="Number", title="Curvibacter in the wells (T33!)")
+
+
+
+############################################## T31
+
+
+T31 <- subset_samples(kostic.Vals, FishID2=="T31")
+T31
+
+ord.nmds.bray.T31 <- ordinate(T31, method="NMDS", distance="bray")
+plot_ordination(T31, ord.nmds.bray.T31, color="Treatment", title="Bray NMDS - Treatment father T31")
+
+
+# Now let's do some Deseq2
+
+
+# For T31 all the data is from the first sequencing run!
+
+diagdds.T31b = phyloseq_to_deseq2(T31, ~ Treatment)
+
+gm_mean = function(x, na.rm=TRUE){
+  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+
+geoMeans.T31b = apply(counts(diagdds.T31b), 1, gm_mean)
+diagdds.T31b = estimateSizeFactors(diagdds.T31b, geoMeans = geoMeans.T31b)
+diagdds.T31b = DESeq(diagdds.T31b, fitType="local")
+
+res.T31b = results(diagdds.T31b)
+res.T31b = res.T31b[order(res.T31b$padj, na.last=NA), ]
+alpha = 0.01
+sigtab.T31b = res.T31b[(res.T31b$padj < alpha), ]
+sigtab.T31b = cbind(as(sigtab.T31b, "data.frame"), as(tax_table(T31)[rownames(sigtab.T31b), ], "matrix"))
+#head(sigtab)
+
+posigtab.T31b = sigtab.T31b[sigtab.T31b[, "log2FoldChange"] > 0, ]
+posigtab.T31b = posigtab.T31b[, c("baseMean", "log2FoldChange", "lfcSE", "padj", "Phylum", "Class", "Family", "Genus")]
+
+theme_set(theme_bw())
+sigtabgen.T31b = subset(sigtab.T31b, !is.na(Genus))
+# Phylum order
+x = tapply(sigtabgen.T31b$log2FoldChange, sigtabgen.T31b$Phylum, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen.T31b$Phylum = factor(as.character(sigtabgen.T31b$Phylum), levels=names(x))
+# Genus order
+x = tapply(sigtabgen.T31b$log2FoldChange, sigtabgen.T31b$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen.T31b$Genus = factor(as.character(sigtabgen.T31b$Genus), levels=names(x))
+ggp.T31b <- ggplot(sigtabgen.T31b, aes(y=Genus, x=log2FoldChange, color=Phylum)) + 
+  geom_vline(xintercept = 0.0, color = "gray", size = 0.5) +
+  geom_point(size=6) + 
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+ggp.T31b + ggtitle("T31 fold changes between treatments (all was in the same run)")
+
+write.table(posigtab.T31b, file="posigtab.T31b_Vals_Sequencing_ignored.txt")
+
+
+
+############################################## T32
+
+T32 <- subset_samples(kostic.Vals, FishID2=="T32")
+T32
+
+ord.nmds.bray.T32 <- ordinate(T32, method="NMDS", distance="bray")
+plot_ordination(T32, ord.nmds.bray.T32, color="Treatment", title="Bray NMDS - Treatment father T32")
+
+
+# Now let's do some Deseq2
+
+diagdds.T32 = phyloseq_to_deseq2(T32, ~ SequencingTwoState + Treatment)
+
+gm_mean = function(x, na.rm=TRUE){
+  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+
+geoMeans.T32 = apply(counts(diagdds.T32), 1, gm_mean)
+diagdds.T32 = estimateSizeFactors(diagdds.T32, geoMeans = geoMeans.T32)
+diagdds.T32 = DESeq(diagdds.T32, fitType="local")
+
+res.T32 = results(diagdds.T32)
+res.T32 = res.T32[order(res.T32$padj, na.last=NA), ]
+alpha = 0.01
+sigtab.T32 = res.T32[(res.T32$padj < alpha), ]
+sigtab.T32 = cbind(as(sigtab.T32, "data.frame"), as(tax_table(T32)[rownames(sigtab.T32), ], "matrix"))
+#head(sigtab)
+
+posigtab.T32 = sigtab.T32[sigtab.T32[, "log2FoldChange"] > 0, ]
+posigtab.T32 = posigtab.T32[, c("baseMean", "log2FoldChange", "lfcSE", "padj", "Phylum", "Class", "Family", "Genus")]
+
+theme_set(theme_bw())
+sigtabgen.T32 = subset(sigtab.T32, !is.na(Genus))
+# Phylum order
+x = tapply(sigtabgen.T32$log2FoldChange, sigtabgen.T32$Phylum, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen.T32$Phylum = factor(as.character(sigtabgen.T32$Phylum), levels=names(x))
+# Genus order
+x = tapply(sigtabgen.T32$log2FoldChange, sigtabgen.T32$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen.T32$Genus = factor(as.character(sigtabgen.T32$Genus), levels=names(x))
+ggp.T32 <- ggplot(sigtabgen.T32, aes(y=Genus, x=log2FoldChange, color=Phylum)) + 
+  geom_vline(xintercept = 0.0, color = "gray", size = 0.5) +
+  geom_point(size=6) + 
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+ggp.T32 + ggtitle("T32 fold changes between treatments (Seq)")
+
+write.table(posigtab.T32, file="posigtab.T32_Vals_withSequencing_accounted_for.txt")
+
+
+# Is there a difference if I do not account for sequencing run???
+
+diagdds.T32b = phyloseq_to_deseq2(T32, ~ Treatment)
+
+gm_mean = function(x, na.rm=TRUE){
+  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+
+geoMeans.T32b = apply(counts(diagdds.T32b), 1, gm_mean)
+diagdds.T32b = estimateSizeFactors(diagdds.T32b, geoMeans = geoMeans.T32b)
+diagdds.T32b = DESeq(diagdds.T32b, fitType="local")
+
+res.T32b = results(diagdds.T32b)
+res.T32b = res.T32b[order(res.T32b$padj, na.last=NA), ]
+alpha = 0.01
+sigtab.T32b = res.T32b[(res.T32b$padj < alpha), ]
+sigtab.T32b = cbind(as(sigtab.T32b, "data.frame"), as(tax_table(T32)[rownames(sigtab.T32b), ], "matrix"))
+#head(sigtab)
+
+posigtab.T32b = sigtab.T32b[sigtab.T32b[, "log2FoldChange"] > 0, ]
+posigtab.T32b = posigtab.T32b[, c("baseMean", "log2FoldChange", "lfcSE", "padj", "Phylum", "Class", "Family", "Genus")]
+
+theme_set(theme_bw())
+sigtabgen.T32b = subset(sigtab.T32b, !is.na(Genus))
+# Phylum order
+x = tapply(sigtabgen.T32b$log2FoldChange, sigtabgen.T32b$Phylum, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen.T32b$Phylum = factor(as.character(sigtabgen.T32b$Phylum), levels=names(x))
+# Genus order
+x = tapply(sigtabgen.T32b$log2FoldChange, sigtabgen.T32b$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen.T32b$Genus = factor(as.character(sigtabgen.T32b$Genus), levels=names(x))
+ggp.T32b <- ggplot(sigtabgen.T32b, aes(y=Genus, x=log2FoldChange, color=Phylum)) + 
+  geom_vline(xintercept = 0.0, color = "gray", size = 0.5) +
+  geom_point(size=6) + 
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+ggp.T32b + ggtitle("T32 fold changes between treatments (Seq ignored)")
+
+write.table(posigtab.T32b, file="posigtab.T32b_Vals_Sequencing_ignored.txt")
+
+
+
+
+############################################## T38
+
+T38 <- subset_samples(kostic.Vals, FishID2=="T38")
+T38
+
+ord.nmds.bray.T38 <- ordinate(T38, method="NMDS", distance="bray")
+plot_ordination(T38, ord.nmds.bray.T38, color="Treatment", title="Bray NMDS - Treatment father T38")
+
+
+# Now let's do some Deseq2
+
+# T38 offpsring was all sequenced in the same run!
+
+diagdds.T38b = phyloseq_to_deseq2(T38, ~ Treatment)
+
+gm_mean = function(x, na.rm=TRUE){
+  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+
+geoMeans.T38b = apply(counts(diagdds.T38b), 1, gm_mean)
+diagdds.T38b = estimateSizeFactors(diagdds.T38b, geoMeans = geoMeans.T38b)
+diagdds.T38b = DESeq(diagdds.T38b, fitType="local")
+
+res.T38b = results(diagdds.T38b)
+res.T38b = res.T38b[order(res.T38b$padj, na.last=NA), ]
+alpha = 0.01
+sigtab.T38b = res.T38b[(res.T38b$padj < alpha), ]
+sigtab.T38b = cbind(as(sigtab.T38b, "data.frame"), as(tax_table(T38)[rownames(sigtab.T38b), ], "matrix"))
+#head(sigtab)
+
+posigtab.T38b = sigtab.T38b[sigtab.T38b[, "log2FoldChange"] > 0, ]
+posigtab.T38b = posigtab.T38b[, c("baseMean", "log2FoldChange", "lfcSE", "padj", "Phylum", "Class", "Family", "Genus")]
+
+theme_set(theme_bw())
+sigtabgen.T38b = subset(sigtab.T38b, !is.na(Genus))
+# Phylum order
+x = tapply(sigtabgen.T38b$log2FoldChange, sigtabgen.T38b$Phylum, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen.T38b$Phylum = factor(as.character(sigtabgen.T38b$Phylum), levels=names(x))
+# Genus order
+x = tapply(sigtabgen.T38b$log2FoldChange, sigtabgen.T38b$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen.T38b$Genus = factor(as.character(sigtabgen.T38b$Genus), levels=names(x))
+ggp.T38b <- ggplot(sigtabgen.T38b, aes(y=Genus, x=log2FoldChange, color=Phylum)) + 
+  geom_vline(xintercept = 0.0, color = "gray", size = 0.5) +
+  geom_point(size=6) + 
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+ggp.T38b + ggtitle("T38 fold changes between treatments (Seq ignored)")
+
+write.table(posigtab.T38b, file="posigtab.T38b_Vals_Sequencing_ignored.txt")
+
+
+############################################## T39
+
+T39 <- subset_samples(kostic.Vals, FishID2=="T39")
+T39
+
+ord.nmds.bray.T39 <- ordinate(T39, method="NMDS", distance="bray")
+plot_ordination(T39, ord.nmds.bray.T39, color="Treatment", title="Bray NMDS - Treatment father T39")
+
+
+# Now let's do some Deseq2
+
+diagdds.T39 = phyloseq_to_deseq2(T39, ~ SequencingTwoState + Treatment)
+
+gm_mean = function(x, na.rm=TRUE){
+  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+
+geoMeans.T39 = apply(counts(diagdds.T39), 1, gm_mean)
+diagdds.T39 = estimateSizeFactors(diagdds.T39, geoMeans = geoMeans.T39)
+diagdds.T39 = DESeq(diagdds.T39, fitType="local")
+
+res.T39 = results(diagdds.T39)
+res.T39 = res.T39[order(res.T39$padj, na.last=NA), ]
+alpha = 0.01
+sigtab.T39 = res.T39[(res.T39$padj < alpha), ]
+sigtab.T39 = cbind(as(sigtab.T39, "data.frame"), as(tax_table(T39)[rownames(sigtab.T39), ], "matrix"))
+#head(sigtab)
+
+posigtab.T39 = sigtab.T39[sigtab.T39[, "log2FoldChange"] > 0, ]
+posigtab.T39 = posigtab.T39[, c("baseMean", "log2FoldChange", "lfcSE", "padj", "Phylum", "Class", "Family", "Genus")]
+
+theme_set(theme_bw())
+sigtabgen.T39 = subset(sigtab.T39, !is.na(Genus))
+# Phylum order
+x = tapply(sigtabgen.T39$log2FoldChange, sigtabgen.T39$Phylum, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen.T39$Phylum = factor(as.character(sigtabgen.T39$Phylum), levels=names(x))
+# Genus order
+x = tapply(sigtabgen.T39$log2FoldChange, sigtabgen.T39$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen.T39$Genus = factor(as.character(sigtabgen.T39$Genus), levels=names(x))
+ggp.T39 <- ggplot(sigtabgen.T39, aes(y=Genus, x=log2FoldChange, color=Phylum)) + 
+  geom_vline(xintercept = 0.0, color = "gray", size = 0.5) +
+  geom_point(size=6) + 
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+ggp.T39 + ggtitle("T39 fold changes between treatments (Seq)")
+
+write.table(posigtab.T39, file="posigtab.T39_Vals_withSequencing_accounted_for.txt")
+
+
+# Is there a difference if I do not account for sequencing run???
+
+diagdds.T39b = phyloseq_to_deseq2(T39, ~ Treatment)
+
+gm_mean = function(x, na.rm=TRUE){
+  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+
+geoMeans.T39b = apply(counts(diagdds.T39b), 1, gm_mean)
+diagdds.T39b = estimateSizeFactors(diagdds.T39b, geoMeans = geoMeans.T39b)
+diagdds.T39b = DESeq(diagdds.T39b, fitType="local")
+
+res.T39b = results(diagdds.T39b)
+res.T39b = res.T39b[order(res.T39b$padj, na.last=NA), ]
+alpha = 0.01
+sigtab.T39b = res.T39b[(res.T39b$padj < alpha), ]
+sigtab.T39b = cbind(as(sigtab.T39b, "data.frame"), as(tax_table(T39)[rownames(sigtab.T39b), ], "matrix"))
+#head(sigtab)
+
+posigtab.T39b = sigtab.T39b[sigtab.T39b[, "log2FoldChange"] > 0, ]
+posigtab.T39b = posigtab.T39b[, c("baseMean", "log2FoldChange", "lfcSE", "padj", "Phylum", "Class", "Family", "Genus")]
+
+theme_set(theme_bw())
+sigtabgen.T39b = subset(sigtab.T39b, !is.na(Genus))
+# Phylum order
+x = tapply(sigtabgen.T39b$log2FoldChange, sigtabgen.T39b$Phylum, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen.T39b$Phylum = factor(as.character(sigtabgen.T39b$Phylum), levels=names(x))
+# Genus order
+x = tapply(sigtabgen.T39b$log2FoldChange, sigtabgen.T39b$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen.T39b$Genus = factor(as.character(sigtabgen.T39b$Genus), levels=names(x))
+ggp.T39b <- ggplot(sigtabgen.T39b, aes(y=Genus, x=log2FoldChange, color=Phylum)) + 
+  geom_vline(xintercept = 0.0, color = "gray", size = 0.5) +
+  geom_point(size=6) + 
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+ggp.T39b + ggtitle("T39 fold changes between treatments (Seq ignored)")
+
+write.table(posigtab.T39b, file="posigtab.T39b_Vals_Sequencing_ignored.txt")
+
+
+############################################## T40
+
+T40 <- subset_samples(kostic.Vals, FishID2=="T40")
+T40
+
+ord.nmds.bray.T40 <- ordinate(T40, method="NMDS", distance="bray")
+plot_ordination(T40, ord.nmds.bray.T40, color="Treatment", title="Bray NMDS - Treatment father T40")
+
+
+# Now let's do some Deseq2
+
+diagdds.T40 = phyloseq_to_deseq2(T40, ~ SequencingTwoState + Treatment)
+
+gm_mean = function(x, na.rm=TRUE){
+  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+
+geoMeans.T40 = apply(counts(diagdds.T40), 1, gm_mean)
+diagdds.T40 = estimateSizeFactors(diagdds.T40, geoMeans = geoMeans.T40)
+diagdds.T40 = DESeq(diagdds.T40, fitType="local")
+
+res.T40 = results(diagdds.T40)
+res.T40 = res.T40[order(res.T40$padj, na.last=NA), ]
+alpha = 0.01
+sigtab.T40 = res.T40[(res.T40$padj < alpha), ]
+sigtab.T40 = cbind(as(sigtab.T40, "data.frame"), as(tax_table(T40)[rownames(sigtab.T40), ], "matrix"))
+#head(sigtab)
+
+posigtab.T40 = sigtab.T40[sigtab.T40[, "log2FoldChange"] > 0, ]
+posigtab.T40 = posigtab.T40[, c("baseMean", "log2FoldChange", "lfcSE", "padj", "Phylum", "Class", "Family", "Genus")]
+
+theme_set(theme_bw())
+sigtabgen.T40 = subset(sigtab.T40, !is.na(Genus))
+# Phylum order
+x = tapply(sigtabgen.T40$log2FoldChange, sigtabgen.T40$Phylum, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen.T40$Phylum = factor(as.character(sigtabgen.T40$Phylum), levels=names(x))
+# Genus order
+x = tapply(sigtabgen.T40$log2FoldChange, sigtabgen.T40$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen.T40$Genus = factor(as.character(sigtabgen.T40$Genus), levels=names(x))
+ggp.T40 <- ggplot(sigtabgen.T40, aes(y=Genus, x=log2FoldChange, color=Phylum)) + 
+  geom_vline(xintercept = 0.0, color = "gray", size = 0.5) +
+  geom_point(size=6) + 
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+ggp.T40 + ggtitle("T40 fold changes between treatments (Seq)")
+
+write.table(posigtab.T40, file="posigtab.T40_Vals_withSequencing_accounted_for.txt")
+
+
+# Is there a difference if I do not account for sequencing run???
+
+diagdds.T40b = phyloseq_to_deseq2(T40, ~ Treatment)
+
+gm_mean = function(x, na.rm=TRUE){
+  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+
+geoMeans.T40b = apply(counts(diagdds.T40b), 1, gm_mean)
+diagdds.T40b = estimateSizeFactors(diagdds.T40b, geoMeans = geoMeans.T40b)
+diagdds.T40b = DESeq(diagdds.T40b, fitType="local")
+
+res.T40b = results(diagdds.T40b)
+res.T40b = res.T40b[order(res.T40b$padj, na.last=NA), ]
+alpha = 0.01
+sigtab.T40b = res.T40b[(res.T40b$padj < alpha), ]
+sigtab.T40b = cbind(as(sigtab.T40b, "data.frame"), as(tax_table(T40)[rownames(sigtab.T40b), ], "matrix"))
+#head(sigtab)
+
+posigtab.T40b = sigtab.T40b[sigtab.T40b[, "log2FoldChange"] > 0, ]
+posigtab.T40b = posigtab.T40b[, c("baseMean", "log2FoldChange", "lfcSE", "padj", "Phylum", "Class", "Family", "Genus")]
+
+theme_set(theme_bw())
+sigtabgen.T40b = subset(sigtab.T40b, !is.na(Genus))
+# Phylum order
+x = tapply(sigtabgen.T40b$log2FoldChange, sigtabgen.T40b$Phylum, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen.T40b$Phylum = factor(as.character(sigtabgen.T40b$Phylum), levels=names(x))
+# Genus order
+x = tapply(sigtabgen.T40b$log2FoldChange, sigtabgen.T40b$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen.T40b$Genus = factor(as.character(sigtabgen.T40b$Genus), levels=names(x))
+ggp.T40b <- ggplot(sigtabgen.T40b, aes(y=Genus, x=log2FoldChange, color=Phylum)) + 
+  geom_vline(xintercept = 0.0, color = "gray", size = 0.5) +
+  geom_point(size=6) + 
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+ggp.T40b + ggtitle("T40 fold changes between treatments (Seq ignored)")
+
+write.table(posigtab.T40b, file="posigtab.T40b_Vals_Sequencing_ignored.txt")
+```
+
+And now some nice plots for the end:
+
+```{r, echo=FALSE, eval=FALSE}
+
+# To finish this up, plot the whole dataset!
+
+ps.well.all.tissues <- subset_samples(ps.w.tree.root_allclean, Population=="Vals")
+GP1 <- ps.well.all.tissues
+
+ord.PCoA.UniFrac_allclean <- ordinate(GP1, method="PCoA", distance="unifrac")
+plot_ordination(GP1, ord.PCoA.UniFrac_allclean, color="ValsTissues", title="UniFrac PCoA - Vals everything")
+
+#phyloseq: devtools::install_github("joey711/phyloseq")
+#library(phyloseq)
+
+w.uni.ValsE <- distance(GP1, "unifrac")
+weighted.uni.ValsE <- distance(GP1, "wunifrac")
+
+ord.PCoA.UniFrac.allclean.weighted <- ordinate(GP1, method="PCoA", distance=weighted.uni.ValsE)
+plot_ordination(GP1, ord.PCoA.UniFrac.allclean.weighted, color="ValsTissues", title="weighted UniFrac PCoA - Vals everything (weighted)")
+
+# Keep only the most abundant ten phyla.
+phylum.sum = tapply(taxa_sums(GP1), tax_table(GP1)[, "Phylum"], sum, na.rm=TRUE)
+top5phyla = names(sort(phylum.sum, TRUE))[1:10]
+GP1 = prune_taxa((tax_table(GP1)[, "Phylum"] %in% top5phyla), GP1)
+
+# Just OTUs:
+GP.ord <- ordinate(GP1, "NMDS", "bray")
+p1 = plot_ordination(GP1, GP.ord, type="taxa", color="Phylum", title="Taxa")
+print(p1)
+
+p1 + facet_wrap(~Phylum, 3)
+
+GP1 <- ps.well.all.tissues
+
+# Keep only the most abundant ten phyla.
+phylum.sum = tapply(taxa_sums(GP1), tax_table(GP1)[, "Phylum"], sum, na.rm=TRUE)
+top5phyla = names(sort(phylum.sum, TRUE))[1:10]
+GP1 = prune_taxa((tax_table(GP1)[, "Phylum"] %in% top5phyla), GP1)
+
+# Just OTUs:
+GP.ord <- ordinate(GP1, "NMDS", "bray")
+p1 = plot_ordination(GP1, GP.ord, type="taxa", color="Phylum", title="Taxa")
+print(p1)
+
+p1 + facet_wrap(~Phylum, 3)
+
+# Just samples:
+p2 = plot_ordination(GP1, GP.ord, type="samples", color="ValsTissues", shape="Tissue2") 
+p2 + geom_polygon(aes(fill=ValsTissues)) + geom_point(size=5) + ggtitle("Vals everything - NMDS - Bray Curtis")
+
+# UniFrac???
+GP.ord.alt <- ordinate(GP1, "PCoA", "weighted.uni.ValsE")
+p77 = plot_ordination(GP1, GP.ord.alt, type="samples", color="ValsTissues", shape="Tissue2") 
+p77 + geom_polygon(aes(fill=ValsTissues)) + geom_point(size=5) + ggtitle("Vals everything - weighted UniFrac PCoA")
+```
+
+```{r, echo=FALSE, eval=FALSE}
+require(ggplot2)
+require(gridExtra)
+require(plyr)
+
+dist = "bray"
+ord_meths = c("DCA", "CCA", "RDA", "DPCoA", "NMDS", "MDS", "PCoA")
+plist = llply(as.list(ord_meths), function(i, physeq, dist){
+  ordi = ordinate(physeq, method=i, distance=dist)
+  plot_ordination(physeq, ordi, "samples", color="ValsTissues")
+}, GP1, dist)
+
+plist
+
+# DCA
+p.dca = plist[[1]] + scale_colour_brewer(type="qual", palette="Set1")
+p.dca = p.dca + scale_fill_brewer(type="qual", palette="Set1")
+p.dca = p.dca + geom_point(size=5) + geom_polygon(aes(fill=Treatment))
+
+# CCA
+p.cca = plist[[2]] + scale_colour_brewer(type="qual", palette="Set1")
+p.cca = p.cca + scale_fill_brewer(type="qual", palette="Set1")
+p.cca = p.cca + geom_point(size=5) + geom_polygon(aes(fill=Treatment))
+
+# RDA
+p.rda = plist[[3]] + scale_colour_brewer(type="qual", palette="Set1")
+p.rda = p.rda + scale_fill_brewer(type="qual", palette="Set1")
+p.rda = p.rda + geom_point(size=5) + geom_polygon(aes(fill=Treatment))
+
+# DPCoA
+p.dpcoa = plist[[4]] + scale_colour_brewer(type="qual", palette="Set1")
+p.dpcoa = p.dpcoa + scale_fill_brewer(type="qual", palette="Set1")
+p.dpcoa = p.dpcoa + geom_point(size=5) + geom_polygon(aes(fill=Treatment))
+
+# NMDS
+p.nmds = plist[[5]] + scale_colour_brewer(type="qual", palette="Set1")
+p.nmds = p.nmds + scale_fill_brewer(type="qual", palette="Set1")
+p.nmds = p.nmds + geom_point(size=5) + geom_polygon(aes(fill=Treatment))
+
+# MDS
+p.mds = plist[[6]] + scale_colour_brewer(type="qual", palette="Set1")
+p.mds = p.mds + scale_fill_brewer(type="qual", palette="Set1")
+p.mds = p.mds + geom_point(size=5) + geom_polygon(aes(fill=Treatment))
+
+# PCoA
+p.pcoa = plist[[7]] + scale_colour_brewer(type="qual", palette="Set1")
+p.pcoa = p.pcoa + scale_fill_brewer(type="qual", palette="Set1")
+p.pcoa = p.pcoa + geom_point(size=5) + geom_polygon(aes(fill=Treatment))
+```
+

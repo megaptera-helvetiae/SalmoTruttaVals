@@ -1,3 +1,5 @@
+# These are the commands I am using to learn about git!
+
   489  jupyter notebook
   490  ssh megaptera@orolo.genomecenter.ucdavis.edu
   491  ssh megaptera@orolo.genomecenter.ucdavis.edu

@@ -1,0 +1,316 @@
+---
+title: "Vals_APS_Run1"
+author: "Laetitia Wilkins"
+date: "4/29/2018"
+output: html_document
+---
+
+```{r setup, echo=FALSE}
+knitr::opts_knit$set(root.dir = "~/SalmoTruttaVals/outputs/outputs_June18/")
+```
+
+## This is my Vals analysis for embryos in both treatments using only data from sequencing run 1!
+
+I am reading in the data first and then using a eukaryotic 16S amplicon I found in my dataset as the outgroup for my tree. (Most probably this is an amplicon from the fish host DNA. Perhaps, the 16S primers amplified a bit of host DNA.)
+
+```{r}
+# Open the libraries:
+library(phyloseq); packageVersion("phyloseq")
+library(ggplot2); packageVersion("ggplot2")
+
+# First round sequencing only; clean
+taxa_f1clean <- readRDS("tax_new_R1_March18.rds")
+seqtab.nochim_f1clean <- readRDS("st1_nochim_nochim_March18.rds")
+fitGTR_f1clean <- readRDS("fitGTR_tree2_Feb18.rds")
+
+# save a text file so that I can look at my taxa and find a good outgroup!
+write.table(taxa_f1clean, file="~/SalmoTruttaVals/outputs/outputs_20180528/taxa_f1clean.txt")
+
+samdf_f1clean <- read.delim("phyloseq_map_first-run.txt", header=T)
+samdf_f1clean <- as.data.frame(samdf_f1clean)
+row.names(samdf_f1clean) <- samdf_f1clean$Subject
+
+ps.w.tree_f1clean <- phyloseq(otu_table(seqtab.nochim_f1clean, taxa_are_rows=FALSE), 
+                              sample_data(samdf_f1clean), 
+                              tax_table(taxa_f1clean), phy_tree(fitGTR_f1clean$tree))
+
+require("ape")
+phyloseq.tree_f1clean <- root(fitGTR_f1clean$tree, outgroup = "TTGGCATGCCTGTAAGTGAAATCAAACAGCTGATCAAGCTGTCATGTGACGCTGCAGACAACACATTCATGGGTCACTGCGGAGAAGTTTTGGTTCCAGAATGAAAGGGAACACCCTGCCGTATCGCTCTGAGAATTAATGCCACGTTCAAAACAACTGGGAACTAGGAACTGGGAAATCTCTGACTTCCCAACTACAGTGCATTCAAGATAACTGGGAACTCAGAAAGAAACAAGGTCTGACTGGGAAAAATCATTTTGAATGGTCATCCAACTCAGAAG", resolve.root = TRUE)
+# this is a eukaryote sequence that was in the dataset!
+
+ps.w.tree.root_f1clean <- phyloseq(otu_table(seqtab.nochim_f1clean, taxa_are_rows=FALSE), 
+                                   sample_data(samdf_f1clean), 
+                                   tax_table(taxa_f1clean), phy_tree(phyloseq.tree_f1clean))
+
+
+# clean up input file
+# i.e., take only embryos, get rid of unfertilized eggs:
+ps.clean.Vals.APS <- subset_samples(ps.w.tree.root_f1clean, APSVals=="yes")
+kostic.Vals <- subset_samples(ps.clean.Vals.APS, TreatmentAntibac != "APSunfert")
+kostic.Vals <- prune_samples(sample_sums(kostic.Vals) > 2000, kostic.Vals)
+kostic.Vals
+```
+
+Now make some plots:
+
+```{r}
+ord.nmds.bray_Vals <- ordinate(kostic.Vals, method="NMDS", distance="bray")
+plot_ordination(kostic.Vals, ord.nmds.bray_Vals, color="TreatmentAntibac", title="Bray NMDS (Vals Run 1) - Treatment")
+
+ord.PCoA.UniFrac.Vals <- ordinate(kostic.Vals, method="PCoA", distance="unifrac")
+plot_ordination(kostic.Vals, ord.PCoA.UniFrac.Vals, color="TreatmentAntibac", title="UniFrac PCoA (Vals Run 1) - Treatment")
+
+w.uni <- distance(kostic.Vals, "unifrac")
+weighted.uni <- distance(kostic.Vals, "wunifrac")
+
+ord.PCoA.UniFrac.Vals.weighted <- ordinate(kostic.Vals, method="PCoA", distance=weighted.uni)
+plot_ordination(kostic.Vals, ord.PCoA.UniFrac.Vals.weighted, color="TreatmentAntibac", title="weighted UniFrac PCoA (Vals Run 1) - Treatment")
+```
+
+It looks like NMDS sees a difference and UniFrac does not. However, if I use weighted UniFrac there is a huuuuuge effect of treatment!
+
+&nbsp;
+&nbsp;
+
+## Now let's do some Deseq2
+
+```{r, message=FALSE, warning=FALSE}
+library(DESeq2); packageVersion("DESeq2")
+
+diagdds = phyloseq_to_deseq2(kostic.Vals, ~ TreatmentAntibac)
+
+gm_mean = function(x, na.rm=TRUE){
+  exp(sum(log(x[x > 0]), na.rm=na.rm) / length(x))
+}
+
+geoMeans = apply(counts(diagdds), 1, gm_mean)
+diagdds = estimateSizeFactors(diagdds, geoMeans = geoMeans)
+diagdds = DESeq(diagdds, fitType="local")
+
+res = results(diagdds)
+res = res[order(res$padj, na.last=NA), ]
+alpha = 0.01
+sigtab = res[(res$padj < alpha), ]
+sigtab = cbind(as(sigtab, "data.frame"), as(tax_table(kostic.Vals)[rownames(sigtab), ], "matrix"))
+#head(sigtab)
+
+posigtab = sigtab[sigtab[, "log2FoldChange"] > 0, ]
+posigtab = posigtab[, c("baseMean", "log2FoldChange", "lfcSE", "padj", "Phylum", "Class", "Family", "Genus")]
+
+library("ggplot2")
+theme_set(theme_bw())
+sigtabgen = subset(sigtab, !is.na(Genus))
+# Phylum order
+x = tapply(sigtabgen$log2FoldChange, sigtabgen$Phylum, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen$Phylum = factor(as.character(sigtabgen$Phylum), levels=names(x))
+# Genus order
+x = tapply(sigtabgen$log2FoldChange, sigtabgen$Genus, function(x) max(x))
+x = sort(x, TRUE)
+sigtabgen$Genus = factor(as.character(sigtabgen$Genus), levels=names(x))
+ggplot(sigtabgen, aes(y=Genus, x=log2FoldChange, color=Phylum)) + 
+  geom_vline(xintercept = 0.0, color = "gray", size = 0.5) +
+  geom_point(size=6) + 
+  theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
+
+write.table(posigtab, file="~/SalmoTruttaVals/outputs/outputs_20180528/posigtab_Vals_Run1only.txt")
+```
+
+The choice of ordination methods depends on 1) the type of data you have, 2) the similarity distance matrix you want/can use, and 3) what you want to say. All of these ordination methods are based on similarity distance matrix constructed on your data, using different methods (such as Euclidean, Bray-Curtis (=Sorensen), Jaccard etc.) to calculate the distance between samples. However, the different methods to calculate the similarity matrix will not give the same results. Different ordination methods use different similarity matrix, and can significantly affect the results. For example, PCA and PCoA will use only Euclidean distance, while nMDS use any similarity distance you want.
+
+&nbsp;
+
+So, how to choose a method?
+If you have a dataset that includes null values (e.g. most dataset from genotyping using fingerprinting methods include null values, when for example a bacterial OTU is present in some samples and not in others), I would advise you to use Bray-Curtis similarity matrix and nMDS ordination. Bray-Curtis distance is chosen because it is not affected by the number of null values between samples like Euclidean distance, and nMDS is chosen because you can choose any similarity matrix, not like PCA.
+  
+&nbsp;
+  
+If you have a dataset that do not include null values (e.g. environmental variables), you can use Euclidean distance, and use either PCA or nMDS, and you will see that in this case, it will give you the same results.
+
+&nbsp;
+
+Many ordination methods exist, such as the ones you mentioned, but also RDA (Redundancy analysis), CAP (canonical analysis of principal coordinates), dbRDA (distance based redundancy analysis), and others… Some methods will be better than others to show complex community or a specific effect of a factor on your data. For example, CAP will be good to show the effect of the interaction between factors on your community. So sometimes, it is good to try different methods if you are not happy about the results, but keep in mind that these methods are “only” ordination, and you need to perform test for significant differences between groups (e.g. ANOSIM, ADONIS, PERMANOVA, MRPP…).
+Often different ordination methods and different features/characteristics than you will find interesting, such overlay vectors or extra variables, % explained by each axis, 3D… However, all these details are more software related than truly related to the ordination methods.
+You can find more information about ordination methods and also test for significant differences between groups in this review:
+  A. Ramette (2007) Multivariate analyses in microbial ecology, FEMS Microbiology Ecology, 62, 142-160.
+Hope that helps.
+Aimeric
+
+&nbsp;
+&nbsp;
+
+Here is some code how you could prepare the data before analyzing it. Such as removing low abundance reads, transforming to even sampling depth or only keeping the most abundant phyla. However, for DESeq2 you want the untransformed reads!
+
+```{r, eval=FALSE, echo=FALSE}
+# Remove OTUs that do not appear more than 5 times in more than half the samples
+
+GP = GlobalPatterns
+wh0 = genefilter_sample(GP, filterfun_sample(function(x) x > 5), A=0.5*nsamples(GP))
+GP1 = prune_taxa(wh0, GP)
+
+# Transform to even sampling depth.
+
+GP1 = transform_sample_counts(GP1, function(x) 1E6 * x/sum(x))
+
+# Keep only the most abundant five phyla.
+
+phylum.sum = tapply(taxa_sums(GP1), tax_table(GP1)[, "Phylum"], sum, na.rm=TRUE)
+top5phyla = names(sort(phylum.sum, TRUE))[1:5]
+GP1 = prune_taxa((tax_table(GP1)[, "Phylum"] %in% top5phyla), GP1)
+
+# Go through this tutorial:
+
+http://joey711.github.io/phyloseq/plot_ordination-examples
+```
+
+## A few nice plots of this dataset:
+
+```{r}
+# Remove OTUs that do not appear more than 5 times in more than half the samples
+GP <- kostic.Vals
+wh0 = genefilter_sample(GP, filterfun_sample(function(x) x > 5), A=0.5*nsamples(GP))
+GP1 = prune_taxa(wh0, GP)
+
+# Keep only the most abundant five phyla.
+phylum.sum = tapply(taxa_sums(GP1), tax_table(GP1)[, "Phylum"], sum, na.rm=TRUE)
+top5phyla = names(sort(phylum.sum, TRUE))[1:5]
+GP1 = prune_taxa((tax_table(GP1)[, "Phylum"] %in% top5phyla), GP1)
+
+# Just OTUs:
+GP.ord <- ordinate(GP1, "NMDS", "bray")
+p1 = plot_ordination(GP1, GP.ord, type="taxa", color="Phylum", title="Taxa")
+print(p1)
+
+p1 + facet_wrap(~Phylum, 3)
+
+# Just samples:
+p2 = plot_ordination(GP1, GP.ord, type="samples", color="TreatmentAntibac", shape="FishID2") 
+p2 + geom_polygon(aes(fill=TreatmentAntibac)) + geom_point(size=5) + ggtitle("samples")
+
+# Try a combination and do bi-plots:
+p3 = plot_ordination(GP1, GP.ord, type="biplot", color="TreatmentAntibac", shape="Phylum", title="Biplot Vals APS")
+
+p3
+
+# Split this up side-by-side:
+p4 = plot_ordination(GP1, GP.ord, type="split", color="Phylum", shape="TreatmentAntibac", label="Treatent", title="split") 
+p4
+```
+
+Different ordination types:
+
+```{r, echo=FALSE}
+require(ggplot2)
+require(gridExtra)
+require(plyr)
+
+dist = "bray"
+ord_meths = c("DCA", "CCA", "RDA", "DPCoA", "NMDS", "MDS", "PCoA")
+plist = llply(as.list(ord_meths), function(i, physeq, dist){
+        ordi = ordinate(physeq, method=i, distance=dist)
+        plot_ordination(physeq, ordi, "samples", color="TreatmentAntibac")
+}, GP1, dist)
+
+plist
+
+# DCA
+p.dca = plist[[1]] + scale_colour_brewer(type="qual", palette="Set1")
+p.dca = p.dca + scale_fill_brewer(type="qual", palette="Set1")
+p.dca = p.dca + geom_point(size=5) + geom_polygon(aes(fill=TreatmentAntibac))
+
+# CCA
+p.cca = plist[[2]] + scale_colour_brewer(type="qual", palette="Set1")
+p.cca = p.cca + scale_fill_brewer(type="qual", palette="Set1")
+p.cca = p.cca + geom_point(size=5) + geom_polygon(aes(fill=TreatmentAntibac))
+
+# RDA
+p.rda = plist[[3]] + scale_colour_brewer(type="qual", palette="Set1")
+p.rda = p.rda + scale_fill_brewer(type="qual", palette="Set1")
+p.rda = p.rda + geom_point(size=5) + geom_polygon(aes(fill=TreatmentAntibac))
+
+# DPCoA
+p.dpcoa = plist[[4]] + scale_colour_brewer(type="qual", palette="Set1")
+p.dpcoa = p.dpcoa + scale_fill_brewer(type="qual", palette="Set1")
+p.dpcoa = p.dpcoa + geom_point(size=5) + geom_polygon(aes(fill=TreatmentAntibac))
+
+# NMDS
+p.nmds = plist[[5]] + scale_colour_brewer(type="qual", palette="Set1")
+p.nmds = p.nmds + scale_fill_brewer(type="qual", palette="Set1")
+p.nmds = p.nmds + geom_point(size=5) + geom_polygon(aes(fill=TreatmentAntibac))
+
+# MDS
+p.mds = plist[[6]] + scale_colour_brewer(type="qual", palette="Set1")
+p.mds = p.mds + scale_fill_brewer(type="qual", palette="Set1")
+p.mds = p.mds + geom_point(size=5) + geom_polygon(aes(fill=TreatmentAntibac))
+
+# PCoA
+p.pcoa = plist[[7]] + scale_colour_brewer(type="qual", palette="Set1")
+p.pcoa = p.pcoa + scale_fill_brewer(type="qual", palette="Set1")
+p.pcoa = p.pcoa + geom_point(size=5) + geom_polygon(aes(fill=TreatmentAntibac))
+```
+
+Now let's plot them one-by-one:
+
+DCA; 
+&nbsp;
+Detrended correspondence analysis (DCA) is a multivariate statistical technique widely used by ecologists to find the main factors or gradients in large, species-rich but usually sparse data matrices that typify ecological community data. DCA is frequently used to suppress artifacts inherent in most other multivariate analyses when applied to gradient data.
+
+```{r, echo=FALSE}
+p.dca
+```
+
+CCA;
+&nbsp;
+In applied statistics, canonical correspondence analysis (CCA) is a multivariate constrained ordination technique that extracts major gradients among combinations of explanatory variables in a dataset. The requirements of a CCA are that the samples are random and independent. Also, the data are categorical and that the independent variables are consistent within the sample site and error-free.
+
+```{r, echo=FALSE}
+p.cca
+```
+
+RDA;
+&nbsp;
+Redundancy analysis (RDA) is a method to extract and summarise the variation in a set of response variables that can be explained by a set of explanatory variables. More accurately, RDA is a direct gradient analysis technique which summarises linear relationships between components of response variables that are "redundant" with (i.e. "explained" by) a set of explanatory variables. To do this, RDA extends multiple linear regression (MLR) by allowing regression of multiple response variables on multiple explanatory variables (Figure 1). A matrix of the fitted values of all response variables generated through MLR is then subject to principal components analysis (PCA). 
+
+```{r, echo=FALSE}
+p.rda
+```
+
+DPCoA;
+&nbsp;
+Double principal component analysis
+
+```{r, echo=FALSE}
+p.dpcoa
+```
+
+NMDS;
+&nbsp;
+Non-metric multidimensional scaling (NMDS) is an indirect gradient analysis approach which produces an ordination based on a distance or dissimilarity matrix. Unlike methods which attempt to maximise the variance or correspondence between objects in an ordination, NMDS attempts to represent, as closely as possible, the pairwise dissimilarity between objects in a low-dimensional space. Any dissimilarity coefficient or distance measure may be used to build the distance matrix used as input.
+&nbsp;
+NMDS is a rank-based approach. This means that the original distance data is substituted with ranks. Thus, rather than object A being 2.1 units distant from object B and 4.4 units distant from object C, object C is the "first" most distant from object A while object C is the "second" most distant. While information about the magnitude of distances is lost, rank-based methods are generally more robust to data which do not have an identifiable distribution.
+
+```{r, echo=FALSE}
+p.nmds
+```
+
+MDS;
+&nbsp;
+Multidimensional scaling (MDS) is a means of visualizing the level of similarity of individual cases of a dataset. It refers to a set of related ordination techniques used in information visualization, in particular to display the information contained in a distance matrix. It is a form of non-linear dimensionality reduction. An MDS algorithm aims to place each object in N-dimensional space such that the between-object distances are preserved as well as possible. Each object is then assigned coordinates in each of the N dimensions. The number of dimensions of an MDS plot N can exceed 2 and is specified a priori. Choosing N=2 optimizes the object locations for a two-dimensional scatterplot.[1]
+
+```{r, echo=FALSE}
+p.mds
+```
+
+PCoA;
+&nbsp;
+Principal coordinates analysis (PCoA; also known as metric multidimensional scaling) summarises and attempts to represent inter-object (dis)similarity in a low-dimensional, Euclidean space. Rather than using raw data, PCoA takes a (dis)similarity matrix as input.
+&nbsp;
+
+It is conceptually similar to principal components analysis (PCA) and correspondence analysis (CA) which preserve Euclidean and χ2 (chi-squared) distances between objects, respectively; however, PCoA can preserve distances generated from any (dis)similarity measure allowing more flexible handling of complex ecological data. 
+&nbsp;
+
+Additionally,  (dis)similarity matrices calculated from quantitative, semi-quantitative, qualitative, and mixed variables can be handled by PCoA. As always, the choice of (dis)similarity measure is critical and must be suitable to the data in question. The choice of measure will also, together with the number of input variables, determine the number of dimensions that comprise the PCoA solution. As an important caveat, be aware that PCoA can only fully represent Euclidean components of the matrix even if the matrix contains non-Euclidean distances. To arrive at a fully Euclidean solution, consider non-metric multidimensional scaling (NMDS) or using data transformations.
+
+```{r, echo=FALSE}
+p.pcoa
+```

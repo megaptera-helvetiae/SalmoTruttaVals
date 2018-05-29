@@ -51,9 +51,9 @@ I used the following commands:
 
 ssh megaptera@128.120.143.102
 
-scp -r /Users/megaptera/Desktop/shared_helper/dada/silva_nr_v128_train_set.fa megaptera@128.120.143.102:/Users/megaptera/dada2
+scp -r ~/Downloads/silva_nr_v128_train_set.fa megaptera@128.120.143.102:~/dada2
 
-scp -r megaptera@128.120.143.102:/Users/megaptera/dada2/outputs /Users/megaptera/Desktop
+scp -r megaptera@128.120.143.102:~/dada2/outputs ~/Desktop
 
 --> To use R on Oskar:
 
@@ -63,6 +63,7 @@ R # simply type R.
 &nbsp;
 
 I followed this Stanford tutorial by Benjamin Callahan:
+http://web.stanford.edu/class/bios221/MicrobiomeWorkflowII.html
 
 &nbsp;
 &nbsp;
@@ -81,8 +82,8 @@ Here I am using the following flags for filterAndTrim(): truncLen=c(280,200), ma
 ```{r eval=FALSE}
 library(dada2); packageVersion("dada2")
 # File parsing for the first round of sequencing
-pathF_round1  <- "/Users/megaptera/dada2/dada_firstRound/fastq/pathF" # CHANGE ME to the directory containing the fastq files before unzipping.
-pathR_round1 <- "/Users/megaptera/dada2/dada_firstRound/fastq/pathR"
+pathF_round1  <- "~/dada2/dada_firstRound/fastq/pathF" # CHANGE ME to the directory containing the fastq files before unzipping.
+pathR_round1 <- "~/dada2/dada_firstRound/fastq/pathR"
 filtpathF_round1 <- file.path(pathF_round1, "filtered") # Filtered forward files go into the pathF/filtered/ subdirectory
 filtpathR_round1 <- file.path(pathR_round1, "filtered") # ...
 fastqFs_round1 <- sort(list.files(pathF_round1, pattern="fastq.gz"))
@@ -96,8 +97,8 @@ filterAndTrim(fwd=file.path(pathF_round1, fastqFs_round1), filt=file.path(filtpa
 
 
 # File parsing for the second round of sequencing
-pathF_round2  <- "/Users/megaptera/dada2/dada_secondRound/fastq/pathF" # CHANGE ME to the directory containing the fastq files before unzipping.
-pathR_round2 <- "/Users/megaptera/dada2/dada_secondRound/fastq/pathR"
+pathF_round2  <- "~/dada2/dada_secondRound/fastq/pathF" # CHANGE ME to the directory containing the fastq files before unzipping.
+pathR_round2 <- "~/dada2/dada_secondRound/fastq/pathR"
 filtpathF_round2 <- file.path(pathF_round2, "filtered") # Filtered forward files go into the pathF/filtered/ subdirectory
 filtpathR_round2 <- file.path(pathR_round2, "filtered") # ...
 fastqFs_round2 <- sort(list.files(pathF_round2, pattern="fastq.gz"))
@@ -115,8 +116,8 @@ filterAndTrim(fwd=file.path(pathF_round2, fastqFs_round2), filt=file.path(filtpa
 
 
 ```{r eval=FALSE}
-filtpathF_round1_filt <- "/Users/megaptera/dada2/dada_firstRound/fastq/pathF/filtered"
-filtpathR_round1_filt <- "/Users/megaptera/dada2/dada_firstRound/fastq/pathR/filtered"
+filtpathF_round1_filt <- "~/dada2/dada_firstRound/fastq/pathF/filtered"
+filtpathR_round1_filt <- "~/dada2/dada_firstRound/fastq/pathR/filtered"
 filtFs_round1_filt <- list.files(filtpathF_round1_filt, pattern="fastq.gz", full.names = TRUE)
 filtRs_round1_filt <- list.files(filtpathR_round1_filt, pattern="fastq.gz", full.names = TRUE)
 sample.names_round1_filt <- sapply(strsplit(basename(filtFs_round1_filt), "_"), `[`, 1) # Assumes filename = samplename_XXX.fastq.gz
@@ -131,11 +132,11 @@ errF_round1_filt <- learnErrors(filtFs_round1_filt, nread=1e6, multithread=TRUE)
 errR_round1_filt <- learnErrors(filtRs_round1_filt, nread=1e6, multithread=TRUE)
 # Sample inference and merger of paired-end reads
 
-png(filename="/Users/megaptera/dada2/outputs_March18/errF_round1_filt.png")
+png(filename="~/dada2/outputs_March18/errF_round1_filt.png")
 plotErrors(errF_round1_filt, nominalQ=TRUE)
 dev.off()
 
-png(filename="/Users/megaptera/dada2/outputs_March18/errR_round1_filt.png")
+png(filename="~/dada2/outputs_March18/errR_round1_filt.png")
 plotErrors(errR_round1_filt, nominalQ=TRUE)
 dev.off()
 
@@ -155,11 +156,11 @@ rm(derepF_round1_filt); rm(derepR_round1_filt)
 # Construct sequence table
 seqtab_round1_filt <- makeSequenceTable(mergers_round1_filt)
 write.table(seqtab_round1_filt, file="test_seqtab_sequencing_firstRound_March18.txt")
-saveRDS(seqtab_round1_filt, "/Users/megaptera/dada2/outputs_March18/seqtab_firstRound_March18.rds") # CHANGE ME to where you want sequence table saved
+saveRDS(seqtab_round1_filt, "~/dada2/outputs_March18/seqtab_firstRound_March18.rds") # CHANGE ME to where you want sequence table saved
 
 
-filtpathF_round2_filt <- "/Users/megaptera/dada2/dada_secondRound/fastq/pathF/filtered"
-filtpathR_round2_filt <- "/Users/megaptera/dada2/dada_secondRound/fastq/pathR/filtered"
+filtpathF_round2_filt <- "~/dada2/dada_secondRound/fastq/pathF/filtered"
+filtpathR_round2_filt <- "~/dada2/dada_secondRound/fastq/pathR/filtered"
 filtFs_round2_filt <- list.files(filtpathF_round2_filt, pattern="fastq.gz", full.names = TRUE)
 filtRs_round2_filt <- list.files(filtpathR_round2_filt, pattern="fastq.gz", full.names = TRUE)
 sample.names_round2_filt <- sapply(strsplit(basename(filtFs_round2_filt), "_"), `[`, 1) # Assumes filename = samplename_XXX.fastq.gz
@@ -174,11 +175,11 @@ errF_round2_filt <- learnErrors(filtFs_round2_filt, nread=1e6, multithread=TRUE)
 errR_round2_filt <- learnErrors(filtRs_round2_filt, nread=1e6, multithread=TRUE)
 # Sample inference and merger of paired-end reads
 
-png(filename="/Users/megaptera/dada2/outputs_March18/errF_round2_filt.png")
+png(filename="~/dada2/outputs_March18/errF_round2_filt.png")
 plotErrors(errF_round2_filt, nominalQ=TRUE)
 dev.off()
 
-png(filename="/Users/megaptera/dada2/outputs_March18/errR_round2_filt.png")
+png(filename="~/dada2/outputs_March18/errR_round2_filt.png")
 plotErrors(errR_round2_filt, nominalQ=TRUE)
 dev.off()
 
@@ -198,15 +199,15 @@ rm(derepF_round2_filt); rm(derepR_round2_filt)
 # Construct sequence table and remove chimeras
 seqtab2_round2_filt <- makeSequenceTable(mergers_round2_filt)
 write.table(seqtab2_round2_filt, file="test_seqtab_sequencing_secondRound_March18.txt")
-saveRDS(seqtab2_round2_filt, "/Users/megaptera/dada2/outputs_March18/seqtab_secondRound_March18.rds") # CHANGE ME to where you want sequence table saved
+saveRDS(seqtab2_round2_filt, "~/dada2/outputs_March18/seqtab_secondRound_March18.rds") # CHANGE ME to where you want sequence table saved
 ```
 
 **MERGING, REMOVING CHIMERAS AND ASSIGNING TAXONOMY CAN BE DONE TOGETHER AGAIN!**
 
 ```{r eval=FALSE}
 # Merge multiple runs (if necessary)
-st2 <- readRDS("/Users/megaptera/dada2/outputs_March18/seqtab_secondRound_March18.rds")
-st1 <- readRDS("/Users/megaptera/dada2/outputs_March18/seqtab_firstRound_March18.rds")
+st2 <- readRDS("~/dada2/outputs_March18/seqtab_secondRound_March18.rds")
+st1 <- readRDS("~/dada2/outputs_March18/seqtab_firstRound_March18.rds")
 st.all <- mergeSequenceTables(st1, st2)
 
 # Remove chimeras
@@ -216,9 +217,9 @@ st2.nochim.nochim<- removeBimeraDenovo(st2, method="consensus", multithread=TRUE
 
 
 # send newest silva training set to Oskar!
-scp /Users/megaptera/Desktop/silva_nr_v132_train_set.fa megaptera@128.120.143.102:/Users/megaptera/dada2
-scp /Users/megaptera/Desktop/gg_13_8_train_set_97.fa megaptera@128.120.143.102:/Users/megaptera/dada2
-scp /Users/megaptera/Desktop/silva_species_assignment_v132.fa megaptera@128.120.143.102:/Users/megaptera/dada2
+scp ~/Downloads/silva_nr_v132_train_set.fa megaptera@128.120.143.102:~/dada2
+scp ~/Downloads/gg_13_8_train_set_97.fa megaptera@128.120.143.102:~/dada2
+scp ~/Downloads/silva_species_assignment_v132.fa megaptera@128.120.143.102:~/dada2
 ```
 
 
@@ -230,8 +231,8 @@ For filterAndTrim() I am only using the following flags: truncLen=c(280,200), ma
 
 ```{r eval=FALSE}
 # File parsing for the first round of sequencing
-pathF_unclean_R1  <- "/Users/megaptera/dada2/dada_firstRound/fastq/pathF" # CHANGE ME to the directory containing the fastq files before unzipping.
-pathR_unclean_R1 <- "/Users/megaptera/dada2/dada_firstRound/fastq/pathR"
+pathF_unclean_R1  <- "~/dada2/dada_firstRound/fastq/pathF" # CHANGE ME to the directory containing the fastq files before unzipping.
+pathR_unclean_R1 <- "~/dada2/dada_firstRound/fastq/pathR"
 filtpathF_unclean_R1 <- file.path(pathF_unclean_R1, "unclean") # Filtered forward files go into the pathF/filtered/ subdirectory
 filtpathR_unclean_R1 <- file.path(pathR_unclean_R1, "unclean") # ...
 fastqFs_unclean_R1 <- sort(list.files(pathF_unclean_R1, pattern="fastq.gz"))
@@ -245,8 +246,8 @@ filterAndTrim(fwd=file.path(pathF_unclean_R1, fastqFs_unclean_R1), filt=file.pat
 
 
 # File parsing for the second round of sequencing
-pathF_unclean_R2  <- "/Users/megaptera/dada2/dada_secondRound/fastq/pathF" # CHANGE ME to the directory containing the fastq files before unzipping.
-pathR_unclean_R2 <- "/Users/megaptera/dada2/dada_secondRound/fastq/pathR"
+pathF_unclean_R2  <- "~/dada2/dada_secondRound/fastq/pathF" # CHANGE ME to the directory containing the fastq files before unzipping.
+pathR_unclean_R2 <- "~/dada2/dada_secondRound/fastq/pathR"
 filtpathF_unclean_R2 <- file.path(pathF_unclean_R2, "unclean") # Filtered forward files go into the pathF/filtered/ subdirectory
 filtpathR_unclean_R2 <- file.path(pathR_unclean_R2, "unclean") # ...
 fastqFs_unclean_R2 <- sort(list.files(pathF_unclean_R2, pattern="fastq.gz"))
@@ -259,8 +260,8 @@ filterAndTrim(fwd=file.path(pathF_unclean_R2, fastqFs_unclean_R2), filt=file.pat
               compress=TRUE, verbose=TRUE, multithread=TRUE)
 
 
-filtpathF_unclean_R1 <- "/Users/megaptera/dada2/dada_firstRound/fastq/pathF/unclean"
-filtpathR_unclean_R1 <- "/Users/megaptera/dada2/dada_firstRound/fastq/pathR/unclean"
+filtpathF_unclean_R1 <- "~/dada2/dada_firstRound/fastq/pathF/unclean"
+filtpathR_unclean_R1 <- "~/dada2/dada_firstRound/fastq/pathR/unclean"
 filtFs_unclean_R1 <- list.files(filtpathF_unclean_R1, pattern="fastq.gz", full.names = TRUE)
 filtRs_unclean_R1 <- list.files(filtpathR_unclean_R1, pattern="fastq.gz", full.names = TRUE)
 sample.names_unclean_R1 <- sapply(strsplit(basename(filtFs_unclean_R1), "_"), `[`, 1) # Assumes filename = samplename_XXX.fastq.gz
@@ -275,11 +276,11 @@ errF_unclean_R1 <- learnErrors(filtFs_unclean_R1, nread=1e6, multithread=TRUE)
 errR_unclean_R1 <- learnErrors(filtRs_unclean_R1, nread=1e6, multithread=TRUE)
 # Sample inference and merger of paired-end reads
 
-png(filename="/Users/megaptera/dada2/outputs_March18/errF_round1_unclean.png")
+png(filename="~/dada2/outputs_March18/errF_round1_unclean.png")
 plotErrors(errF_unclean_R1, nominalQ=TRUE)
 dev.off()
 
-png(filename="/Users/megaptera/dada2/outputs_March18/errR_round1_unclean.png")
+png(filename="~/dada2/outputs_March18/errR_round1_unclean.png")
 plotErrors(errR_unclean_R1, nominalQ=TRUE)
 dev.off()
 
@@ -298,11 +299,11 @@ rm(derepF_unclean_R1); rm(derepR_unclean_R1)
 # Construct sequence table and remove chimeras
 seqtab_unclean_R1 <- makeSequenceTable(mergers_unclean_R1)
 write.table(seqtab_unclean_R1, file="seqtab_sequencing_Round1_unclean_set-length.txt")
-saveRDS(seqtab_unclean_R1, "/Users/megaptera/dada2/outputs_March18/seqtab_sequencing_Round1_unclean.rds") # CHANGE ME to where you want sequence table saved
+saveRDS(seqtab_unclean_R1, "~/dada2/outputs_March18/seqtab_sequencing_Round1_unclean.rds") # CHANGE ME to where you want sequence table saved
 
 
-filtpathF_unclean_R2 <- "/Users/megaptera/dada2/dada_secondRound/fastq/pathF/unclean"
-filtpathR_unclean_R2 <- "/Users/megaptera/dada2/dada_secondRound/fastq/pathR/unclean"
+filtpathF_unclean_R2 <- "~/dada2/dada_secondRound/fastq/pathF/unclean"
+filtpathR_unclean_R2 <- "~/dada2/dada_secondRound/fastq/pathR/unclean"
 filtFs_unclean_R2 <- list.files(filtpathF_unclean_R2, pattern="fastq.gz", full.names = TRUE)
 filtRs_unclean_R2 <- list.files(filtpathR_unclean_R2, pattern="fastq.gz", full.names = TRUE)
 sample.names_unclean_R2 <- sapply(strsplit(basename(filtFs_unclean_R2), "_"), `[`, 1) # Assumes filename = samplename_XXX.fastq.gz
@@ -317,11 +318,11 @@ errF_unclean_R2 <- learnErrors(filtFs_unclean_R2, nread=1e6, multithread=TRUE)
 errR_unclean_R2 <- learnErrors(filtRs_unclean_R2, nread=1e6, multithread=TRUE)
 # Sample inference and merger of paired-end reads
 
-png(filename="/Users/megaptera/dada2/outputs_March18/errF_round2_unclean.png")
+png(filename="~/dada2/outputs_March18/errF_round2_unclean.png")
 plotErrors(errF_unclean_R2, nominalQ=TRUE)
 dev.off()
 
-png(filename="/Users/megaptera/dada2/outputs_March18/errR_round2_unclean.png")
+png(filename="~/dada2/outputs_March18/errR_round2_unclean.png")
 plotErrors(errR_unclean_R2, nominalQ=TRUE)
 dev.off()
 
@@ -340,12 +341,12 @@ rm(derepF_unclean_R2); rm(derepR_unclean_R2)
 # Construct sequence table and remove chimeras
 seqtab_unclean_R2 <- makeSequenceTable(mergers_unclean_R2)
 write.table(seqtab_unclean_R2, file="seqtab_sequencing_Round2_unclean.txt")
-saveRDS(seqtab_unclean_R2, "/Users/megaptera/dada2/outputs_March18/seqtab_sequencing_Round2_unclean.rds") # CHANGE ME to where you want sequence table saved
+saveRDS(seqtab_unclean_R2, "~/dada2/outputs_March18/seqtab_sequencing_Round2_unclean.rds") # CHANGE ME to where you want sequence table saved
 
-st3 <- readRDS("/Users/megaptera/dada2/outputs_March18/seqtab_sequencing_Round1_unclean.rds")
+st3 <- readRDS("~/dada2/outputs_March18/seqtab_sequencing_Round1_unclean.rds")
 st3.nochim.nochim<- removeBimeraDenovo(st3, method="consensus", multithread=TRUE)
 
-st4 <- readRDS("/Users/megaptera/dada2/outputs_March18/seqtab_sequencing_Round2_unclean.rds")
+st4 <- readRDS("~/dada2/outputs_March18/seqtab_sequencing_Round2_unclean.rds")
 st4.nochim.nochim<- removeBimeraDenovo(st4, method="consensus", multithread=TRUE)
 ```
 
@@ -390,14 +391,14 @@ out_unclean1 <- filterAndTrim(fwd=file.path(pathF_unclean_R1, fastqFs_unclean_R1
                               compress=TRUE, verbose=TRUE, multithread=TRUE)
 
 
-st3 <- readRDS("/Users/megaptera/dada2/outputs_March18/seqtab_sequencing_Round1_unclean.rds")
+st3 <- readRDS("~/dada2/outputs_March18/seqtab_sequencing_Round1_unclean.rds")
 st3.nochim.nochim<- removeBimeraDenovo(st3, method="consensus", multithread=TRUE)
 
 track3 <- cbind(out_unclean1, rowSums(st3), rowSums(st3.nochim.nochim))
 colnames(track3) <- c("input","filtered","tabled", "nonchim")
 rownames(track3) <- sample.names_unclean_R1
 
-st4 <- readRDS("/Users/megaptera/dada2/outputs_March18/seqtab_sequencing_Round2_unclean.rds")
+st4 <- readRDS("~/dada2/outputs_March18/seqtab_sequencing_Round2_unclean.rds")
 st4.nochim.nochim<- removeBimeraDenovo(st4, method="consensus", multithread=TRUE)
 
 track4 <- cbind(out_unclean2, rowSums(st4), rowSums(st4.nochim.nochim))
@@ -424,22 +425,22 @@ In the code chunk below you will see that I used both reference databases (Green
 # silva_species_assignment_v132.fa
 
 # And here are the names of our datasets so far:
-# /Users/megaptera/dada2/outputs_March18/seqtab_firstRound_March18.rds
-# /Users/megaptera/dada2/outputs_March18/seqtab_secondRound_March18.rds
-# /Users/megaptera/dada2/outputs_March18/seqtab_sequencing_Round1_unclean.rds
-# /Users/megaptera/dada2/outputs_March18/seqtab_sequencing_Round2_unclean.rds
+# ~/dada2/outputs_March18/seqtab_firstRound_March18.rds
+# ~/dada2/outputs_March18/seqtab_secondRound_March18.rds
+# ~/dada2/outputs_March18/seqtab_sequencing_Round1_unclean.rds
+# ~/dada2/outputs_March18/seqtab_sequencing_Round2_unclean.rds
 
 
 library(dada2)
-setwd("/Users/megaptera/dada2/outputs_March18")
+setwd("~/dada2/outputs_March18")
 
 # Merge multiple runs (if necessary)
-st1 <- readRDS("/Users/megaptera/dada2/outputs_March18/seqtab_firstRound_March18.rds")
-st2 <- readRDS("/Users/megaptera/dada2/outputs_March18/seqtab_secondRound_March18.rds")
+st1 <- readRDS("~/dada2/outputs_March18/seqtab_firstRound_March18.rds")
+st2 <- readRDS("~/dada2/outputs_March18/seqtab_secondRound_March18.rds")
 st.all.clean <- mergeSequenceTables(st1, st2)
 
-st3 <- readRDS("/Users/megaptera/dada2/outputs_March18/seqtab_sequencing_Round1_unclean.rds")
-st4 <- readRDS("/Users/megaptera/dada2/outputs_March18/seqtab_sequencing_Round2_unclean.rds")
+st3 <- readRDS("~/dada2/outputs_March18/seqtab_sequencing_Round1_unclean.rds")
+st4 <- readRDS("~/dada2/outputs_March18/seqtab_sequencing_Round2_unclean.rds")
 st.all.unclean <- mergeSequenceTables(st3, st4)
 
 # Remove chimeras
@@ -451,47 +452,47 @@ st4.nochim.nochim<- removeBimeraDenovo(st4, method="consensus", multithread=TRUE
 seqtab.chim.unclean <- removeBimeraDenovo(st.all.unclean, method="consensus", multithread=TRUE)
 
 
-tax_new <- assignTaxonomy(seqtab.chim.clean, "/Users/megaptera/dada2/silva_nr_v132_train_set.fa", multithread=TRUE) # done
-tax_new_R1 <- assignTaxonomy(st1.nochim.nochim, "/Users/megaptera/dada2/silva_nr_v132_train_set.fa", multithread=TRUE) # done
-tax_old_R1 <- assignTaxonomy(st3.nochim.nochim, "/Users/megaptera/dada2/silva_nr_v132_train_set.fa", multithread=TRUE) # done
-tax_old_R2 <- assignTaxonomy(st4, "/Users/megaptera/dada2/silva_nr_v132_train_set.fa", multithread=TRUE)
+tax_new <- assignTaxonomy(seqtab.chim.clean, "~/dada2/silva_nr_v132_train_set.fa", multithread=TRUE) # done
+tax_new_R1 <- assignTaxonomy(st1.nochim.nochim, "~/dada2/silva_nr_v132_train_set.fa", multithread=TRUE) # done
+tax_old_R1 <- assignTaxonomy(st3.nochim.nochim, "~/dada2/silva_nr_v132_train_set.fa", multithread=TRUE) # done
+tax_old_R2 <- assignTaxonomy(st4, "~/dada2/silva_nr_v132_train_set.fa", multithread=TRUE)
 
-tax_new_R1_green <- assignTaxonomy(st1.nochim.nochim, "/Users/megaptera/dada2/gg_13_8_train_set_97.fa", multithread=TRUE)
-tax_old_R1_green <- assignTaxonomy(st3.nochim.nochim, "/Users/megaptera/dada2/gg_13_8_train_set_97.fa", multithread=TRUE)
+tax_new_R1_green <- assignTaxonomy(st1.nochim.nochim, "~/dada2/gg_13_8_train_set_97.fa", multithread=TRUE)
+tax_old_R1_green <- assignTaxonomy(st3.nochim.nochim, "~/dada2/gg_13_8_train_set_97.fa", multithread=TRUE)
 
-tax_new_species <- addSpecies(tax_new, "/Users/megaptera/dada2/silva_species_assignment_v132.fa", multithread=TRUE)
+tax_new_species <- addSpecies(tax_new, "~/dada2/silva_species_assignment_v132.fa", multithread=TRUE)
 
-dirty_sperm <- assignTaxonomy(st4, "/Users/megaptera/dada2/gg_13_8_train_set_97.fa", multithread=TRUE)
+dirty_sperm <- assignTaxonomy(st4, "~/dada2/gg_13_8_train_set_97.fa", multithread=TRUE)
 
 
 # Write to disk
 
 # --> This is the whole dataset merged and blasted against SILVA.
-saveRDS(seqtab.chim.clean, "/Users/megaptera/dada2/outputs_March18/seqtab_chim_clean_March18.rds") 
-saveRDS(tax_new, "/Users/megaptera/dada2/outputs_March18/tax_new_March18.rds")
+saveRDS(seqtab.chim.clean, "~/dada2/outputs_March18/seqtab_chim_clean_March18.rds") 
+saveRDS(tax_new, "~/dada2/outputs_March18/tax_new_March18.rds")
 
 # --> This is run 1, cleaned and blasted against SILVA.
-saveRDS(st1.nochim.nochim, "/Users/megaptera/dada2/outputs_March18/st1_nochim_nochim_March18.rds") 
-saveRDS(tax_new_R1, "/Users/megaptera/dada2/outputs_March18/tax_new_R1_March18.rds")
+saveRDS(st1.nochim.nochim, "~/dada2/outputs_March18/st1_nochim_nochim_March18.rds") 
+saveRDS(tax_new_R1, "~/dada2/outputs_March18/tax_new_R1_March18.rds")
 
 # --> This is run 1, dirty and blasted against SILVA.
-saveRDS(st3.nochim.nochim, "/Users/megaptera/dada2/outputs_March18/st3_nochim_nochim_March18.rds") 
-saveRDS(tax_old_R1, "/Users/megaptera/dada2/outputs_March18/tax_old_R1_March18.rds")
+saveRDS(st3.nochim.nochim, "~/dada2/outputs_March18/st3_nochim_nochim_March18.rds") 
+saveRDS(tax_old_R1, "~/dada2/outputs_March18/tax_old_R1_March18.rds")
 
 # --> This is run 2, unclean and no chimera check; and blasted against SILVA.
-saveRDS(tax_old_R2, "/Users/megaptera/dada2/outputs_March18/tax_old_R2_March18.rds")
+saveRDS(tax_old_R2, "~/dada2/outputs_March18/tax_old_R2_March18.rds")
 
 # --> This is run 1, cleaned and blasted against GREENGENES.
-saveRDS(tax_new_R1_green, "/Users/megaptera/dada2/outputs_March18/tax_new_R1_green_March18.rds") 
+saveRDS(tax_new_R1_green, "~/dada2/outputs_March18/tax_new_R1_green_March18.rds") 
 
 # --> This is run 1, dirty and blasted against GREENGENES.
-saveRDS(tax_old_R1_green, "/Users/megaptera/dada2/outputs_March18/tax_old_R1_green_March18.rds")
+saveRDS(tax_old_R1_green, "~/dada2/outputs_March18/tax_old_R1_green_March18.rds")
 
 # --> This is the whole dataset merged and blasted against SILVA, down to species level.
-saveRDS(tax_new_species, "/Users/megaptera/dada2/outputs_March18/tax_new_species-level_March18.rds")
+saveRDS(tax_new_species, "~/dada2/outputs_March18/tax_new_species-level_March18.rds")
 
 # --> This is run 2, unclean and no chimera check; and blasted against Greengenes.
-saveRDS(dirty_sperm, "/Users/megaptera/dada2/outputs_March18/tax_dirty_sperm.rds")
+saveRDS(dirty_sperm, "~/dada2/outputs_March18/tax_dirty_sperm.rds")
 ```
 
 Here is a list of R environment based tools for 16S rRNA gene data exploration, statistical analysis and visualization
@@ -519,7 +520,7 @@ I ran this all on Oskar!
 my script looked like this, and I ran it with the following command:
 
 screen
-R CMD BATCH /Users/megaptera/dada2/outputs/Oskar_tree.R
+R CMD BATCH ~/dada2/outputs/Oskar_tree.R
 ctrl-a d
 screen -r
 
@@ -557,24 +558,24 @@ sapply(c(.cran_packages, .bioc_packages), require, character.only = TRUE)
 seqs1 <- getSequences(seqtab.chim.clean)
 names(seqs1) <- seqs1 # This propagates to the tip labels of the tree
 alignment1 <- AlignSeqs(DNAStringSet(seqs1), anchor=NA,verbose=FALSE)
-saveRDS(alignment1, "/Users/megaptera/dada2/outputs_March18/alignment1_Feb18.rds")
+saveRDS(alignment1, "~/dada2/outputs_March18/alignment1_Feb18.rds")
 
 
 seqs2 <- getSequences(st1.nochim.nochim)
 names(seqs2) <- seqs2 # This propagates to the tip labels of the tree
 alignment2 <- AlignSeqs(DNAStringSet(seqs2), anchor=NA,verbose=FALSE)
-saveRDS(alignment2, "/Users/megaptera/dada2/outputs_March18/alignment2_Feb18.rds")
+saveRDS(alignment2, "~/dada2/outputs_March18/alignment2_Feb18.rds")
 
 
 seqs3 <- getSequences(st3.nochim.nochim)
 names(seqs3) <- seqs3 # This propagates to the tip labels of the tree
 alignment3 <- AlignSeqs(DNAStringSet(seqs3), anchor=NA,verbose=FALSE)
-saveRDS(alignment3, "/Users/megaptera/dada2/outputs_March18/alignment3_Feb18.rds")
+saveRDS(alignment3, "~/dada2/outputs_March18/alignment3_Feb18.rds")
 
 seqs4 <- getSequences(st4)
 names(seqs4) <- seqs4 # This propagates to the tip labels of the tree
 alignment4 <- AlignSeqs(DNAStringSet(seqs4), anchor=NA,verbose=FALSE)
-saveRDS(alignment4, "/Users/megaptera/dada2/outputs_March18/alignment4_Feb18.rds")
+saveRDS(alignment4, "~/dada2/outputs_March18/alignment4_Feb18.rds")
 
 
 # The phangorn R package is then used to construct a phylogenetic tree. Here we first construct a neighbor-joining tree, and then fit a GTR+G+I (Generalized time-reversible with Gamma rate variation) maximum likelihood tree using the neighbor-joining tree as a starting point.
@@ -587,7 +588,7 @@ fitGTR1 <- update(fit1, k=4, inv=0.2)
 fitGTR1 <- optim.pml(fitGTR1, model="GTR", optInv=TRUE, optGamma=TRUE,
                     rearrangement = "stochastic", control = pml.control(trace = 0))
 
-saveRDS(fitGTR1, "/Users/megaptera/dada2/outputs_March18/fitGTR_tree1_Feb18.rds")
+saveRDS(fitGTR1, "~/dada2/outputs_March18/fitGTR_tree1_Feb18.rds")
 
 
 library(ape)
@@ -603,7 +604,7 @@ fit2 = pml(treeNJ2, data=phangAlign2)
 fitGTR2 <- update(fit2, k=4, inv=0.2)
 fitGTR2 <- optim.pml(fitGTR2, model="GTR", optInv=TRUE, optGamma=TRUE,
                      rearrangement = "stochastic", control = pml.control(trace = 0))
-saveRDS(fitGTR2, "/Users/megaptera/dada2/outputs_March18/fitGTR_tree2_Feb18.rds")
+saveRDS(fitGTR2, "~/dada2/outputs_March18/fitGTR_tree2_Feb18.rds")
 
 write.tree(fitGTR2$tree, file="my_Oskar_trees_tree2.tre")
 
@@ -615,7 +616,7 @@ fit3 = pml(treeNJ3, data=phangAlign3)
 fitGTR3 <- update(fit3, k=4, inv=0.2)
 fitGTR3 <- optim.pml(fitGTR3, model="GTR", optInv=TRUE, optGamma=TRUE,
                      rearrangement = "stochastic", control = pml.control(trace = 0))
-saveRDS(fitGTR3, "/Users/megaptera/dada2/outputs_March18/fitGTR_tree3_Feb18.rds")
+saveRDS(fitGTR3, "~/dada2/outputs_March18/fitGTR_tree3_Feb18.rds")
 
 write.tree(fitGTR3$tree, file="my_Oskar_trees_tree3.tre")
 
@@ -627,7 +628,7 @@ fit4 = pml(treeNJ4, data=phangAlign4)
 fitGTR4 <- update(fit4, k=4, inv=0.2)
 fitGTR4 <- optim.pml(fitGTR4, model="GTR", optInv=TRUE, optGamma=TRUE,
                      rearrangement = "stochastic", control = pml.control(trace = 0))
-saveRDS(fitGTR4, "/Users/megaptera/dada2/outputs_March18/fitGTR_tree4_Feb18.rds")
+saveRDS(fitGTR4, "~/dada2/outputs_March18/fitGTR_tree4_Feb18.rds")
 
 write.tree(fitGTR4$tree, file="my_Oskar_trees_tree4.tre")
 ```
